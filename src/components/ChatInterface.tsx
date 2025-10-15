@@ -85,6 +85,8 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
             // Load conversations from Supabase
             const conversations = await getConversations();
 
+            console.log(`Loaded ${conversations?.length || 0} conversations from Supabase`);
+
             if (conversations && conversations.length > 0) {
               const formattedHistory = conversations.map((conv) => ({
                 id: conv.id,
@@ -94,39 +96,53 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
               }));
 
               // Set the first conversation as selected
-              if (formattedHistory.length > 0) {
-                formattedHistory[0].selected = true;
-                setCurrentConversationId(formattedHistory[0].id);
+              formattedHistory[0].selected = true;
+              setCurrentConversationId(formattedHistory[0].id);
 
-                // Load messages for the selected conversation
-                const conversation = await getConversationWithMessages(
-                  formattedHistory[0].id,
-                );
+              // Load messages for the selected conversation
+              const conversation = await getConversationWithMessages(
+                formattedHistory[0].id,
+              );
 
-                if (
-                  conversation &&
-                  conversation.messages &&
-                  conversation.messages.length > 0
-                ) {
-                  setMessages(conversation.messages as ChatMessage[]);
+              if (
+                conversation &&
+                conversation.messages &&
+                conversation.messages.length > 0
+              ) {
+                console.log(`Loaded ${conversation.messages.length} messages`);
+                setMessages(conversation.messages as ChatMessage[]);
 
-                  // Update current persona based on the last bot message
-                  const lastBotMessage = [...conversation.messages]
-                    .reverse()
-                    .find((msg) => msg.sender === "bot" && msg.persona);
+                // Update current persona based on the last bot message
+                const lastBotMessage = [...conversation.messages]
+                  .reverse()
+                  .find((msg) => msg.sender === "bot" && msg.persona);
 
-                  if (lastBotMessage && lastBotMessage.persona) {
-                    const personaType = getPersonaTypeFromDisplayName(
-                      lastBotMessage.persona,
-                    );
-                    if (personaType) {
-                      setCurrentPersona(personaType);
-                    }
+                if (lastBotMessage && lastBotMessage.persona) {
+                  const personaType = getPersonaTypeFromDisplayName(
+                    lastBotMessage.persona,
+                  );
+                  if (personaType) {
+                    setCurrentPersona(personaType);
                   }
                 }
+              } else {
+                // Conversation exists but has no messages - show welcome message
+                console.log('Conversation exists but no messages found');
+                const welcomeMessage: ChatMessage = {
+                  id: uuidv4(),
+                  content: `Hello! I'm GreenBot, your sustainable AI assistant. How can I help you with environmental topics today?`,
+                  sender: "bot",
+                  timestamp: new Date(),
+                  persona: "GreenBot",
+                };
+                setMessages([welcomeMessage]);
               }
 
               setChatHistory(formattedHistory);
+            } else {
+              // No conversations found - user is new or has no history
+              console.log('No conversations found - showing default welcome');
+              // Keep the default state (welcome message already set in useState)
             }
           } catch (error) {
             console.error("Error loading conversations from Supabase:", error);
