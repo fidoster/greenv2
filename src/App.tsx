@@ -60,6 +60,8 @@ function App() {
         if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
           // Clear unauthenticated chat data when authentication state changes
           localStorage.removeItem('unauthenticatedChats');
+          // Also clear deleted chats list to prevent hiding Supabase conversations
+          localStorage.removeItem('deletedChats');
           console.log('Cleared localStorage chat data due to auth state change:', event);
         }
       }
