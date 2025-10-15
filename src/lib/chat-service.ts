@@ -58,8 +58,6 @@ export async function saveMessage(conversationId: string, message: Message) {
       sender: message.sender,
       conversation_id: conversationId,
       created_at: message.timestamp.toISOString(),
-      // Add role field for compatibility
-      role: message.sender === 'user' ? 'user' : 'assistant',
     };
 
     // Only add the persona field if it exists in the message
