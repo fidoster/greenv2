@@ -48,10 +48,27 @@ function App() {
   // Get the current URL to check for query parameters
   const currentUrl = window.location.href;
   const hasFrameworkParam = currentUrl.includes('framework=VITE');
-  
+
   // Use the useRoutes hook for Tempo routes
   const tempoRoutes =
     import.meta.env.VITE_TEMPO === "true" ? useRoutes(routes) : null;
+
+  // Clear localStorage chat data when user signs in/out
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+          // Clear unauthenticated chat data when authentication state changes
+          localStorage.removeItem('unauthenticatedChats');
+          console.log('Cleared localStorage chat data due to auth state change:', event);
+        }
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   return (
     <ThemeProvider defaultTheme="light" storageKey="greenbot-ui-theme">

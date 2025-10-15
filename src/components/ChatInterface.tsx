@@ -74,64 +74,8 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
         const { data } = await supabase.auth.getSession();
         const isAuthenticated = !!data.session;
 
-        // Always try to load from localStorage first to prevent flashing of empty state
-        const storedChats = localStorage.getItem("unauthenticatedChats");
-        if (storedChats) {
-          try {
-            const parsedChats = JSON.parse(storedChats);
-            if (parsedChats.length > 0) {
-              // Format the stored chats
-              const formattedHistory = parsedChats.map((chat: any) => ({
-                id: chat.id,
-                title: chat.title,
-                date: new Date(chat.date).toLocaleDateString(),
-                selected: false,
-              }));
-
-              // Set the first chat as selected
-              if (formattedHistory.length > 0) {
-                formattedHistory[0].selected = true;
-                setCurrentConversationId(formattedHistory[0].id);
-
-                // If this chat has messages, load them
-                if (
-                  parsedChats[0].messages &&
-                  parsedChats[0].messages.length > 0
-                ) {
-                  // Need to ensure timestamp is converted back to Date objects
-                  const processedMessages = parsedChats[0].messages.map(
-                    (msg: any) => ({
-                      ...msg,
-                      timestamp: new Date(msg.timestamp),
-                    }),
-                  );
-
-                  setMessages(processedMessages);
-
-                  // Update current persona based on the last bot message
-                  const lastBotMessage = [...processedMessages]
-                    .reverse()
-                    .find((msg: any) => msg.sender === "bot" && msg.persona);
-
-                  if (lastBotMessage && lastBotMessage.persona) {
-                    const personaType = getPersonaTypeFromDisplayName(
-                      lastBotMessage.persona,
-                    );
-                    if (personaType) {
-                      setCurrentPersona(personaType);
-                    }
-                  }
-                }
-              }
-
-              setChatHistory(formattedHistory);
-            }
-          } catch (parseError) {
-            console.error("Error parsing stored chats:", parseError);
-          }
-        }
-
-        // If authenticated, override with data from Supabase
+        // If authenticated, ONLY load from Supabase (not localStorage)
+        // This prevents users from seeing other users' localStorage data
         if (isAuthenticated) {
           try {
             // Import the chat service functions
@@ -187,6 +131,63 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
           } catch (error) {
             console.error("Error loading conversations from Supabase:", error);
           }
+        } else {
+          // Only load from localStorage if NOT authenticated
+          const storedChats = localStorage.getItem("unauthenticatedChats");
+          if (storedChats) {
+            try {
+              const parsedChats = JSON.parse(storedChats);
+              if (parsedChats.length > 0) {
+              // Format the stored chats
+              const formattedHistory = parsedChats.map((chat: any) => ({
+                id: chat.id,
+                title: chat.title,
+                date: new Date(chat.date).toLocaleDateString(),
+                selected: false,
+              }));
+
+              // Set the first chat as selected
+              if (formattedHistory.length > 0) {
+                formattedHistory[0].selected = true;
+                setCurrentConversationId(formattedHistory[0].id);
+
+                // If this chat has messages, load them
+                if (
+                  parsedChats[0].messages &&
+                  parsedChats[0].messages.length > 0
+                ) {
+                  // Need to ensure timestamp is converted back to Date objects
+                  const processedMessages = parsedChats[0].messages.map(
+                    (msg: any) => ({
+                      ...msg,
+                      timestamp: new Date(msg.timestamp),
+                    }),
+                  );
+
+                  setMessages(processedMessages);
+
+                  // Update current persona based on the last bot message
+                  const lastBotMessage = [...processedMessages]
+                    .reverse()
+                    .find((msg: any) => msg.sender === "bot" && msg.persona);
+
+                  if (lastBotMessage && lastBotMessage.persona) {
+                    const personaType = getPersonaTypeFromDisplayName(
+                      lastBotMessage.persona,
+                    );
+                    if (personaType) {
+                      setCurrentPersona(personaType);
+                    }
+                  }
+                }
+              }
+
+              setChatHistory(formattedHistory);
+            }
+          } catch (parseError) {
+            console.error("Error parsing stored chats:", parseError);
+          }
+        }
         }
       } catch (error) {
         console.error("Error loading conversations:", error);
