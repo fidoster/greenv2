@@ -4,29 +4,68 @@ GreenBot is an intelligent chat application focused on environmental sustainabil
 
 ## ✨ Features
 
-- 🤖 **Multiple AI Personas**: Chat with specialized environmental assistants
-  - GreenBot: General sustainability advisor
-  - EcoLife Guide: Sustainable lifestyle choices
-  - Waste Wizard: Waste reduction & recycling
-  - Nature Navigator: Biodiversity & conservation
-  - Power Sage: Energy efficiency
-  - Climate Guardian: Climate action
+### 🤖 Multiple AI Personas
+Chat with specialized environmental assistants, each an expert in their field:
+- **GreenBot**: General sustainability advisor
+- **EcoLife Guide**: Sustainable lifestyle choices and daily eco-habits
+- **Waste Wizard**: Waste reduction, recycling, and circular economy
+- **Nature Navigator**: Biodiversity, conservation, and ecosystem management
+- **Power Sage**: Energy efficiency and renewable energy solutions
+- **Climate Guardian**: Climate action and carbon footprint reduction
 
-- 🔐 **Secure Authentication**: Built with Supabase Auth
-- 💾 **Conversation History**: Save and manage your chats
-- 🎨 **Modern UI**: Built with React, TypeScript, and Tailwind CSS
-- 🌙 **Dark Mode**: Toggle between light and dark themes
-- 📊 **Environmental Impact Tracking**: Monitor your carbon footprint
-- 🧪 **Interactive Quizzes**: Test your environmental knowledge
-- 🔑 **Flexible API Integration**: Support for OpenAI, DeepSeek, and Grok
+### 🔐 Security & Authentication
+- Secure user authentication powered by Supabase Auth
+- API keys stored securely in database (never in browser)
+- Row Level Security (RLS) policies for data isolation
+- Email tracking for user activity monitoring
 
-## 🚀 Quick Start
+### 💬 Smart Chat Features
+- Conversation history saved per user
+- Switch between different AI personas mid-conversation
+- Automatic conversation titles based on content
+- Delete and manage your chat history
+- Real-time message persistence
+
+### 🎨 Modern User Experience
+- Beautiful, responsive UI built with Radix UI components
+- Dark mode and light mode support
+- Smooth animations and transitions
+- Mobile-friendly design
+- Accessible keyboard navigation
+
+### 🔑 Flexible AI Provider Support
+- **OpenAI** (GPT-4o)
+- **DeepSeek** (DeepSeek Chat)
+- **Grok** (Grok Beta)
+- Easy switching between providers
+- Secure API key management at `/admin`
+
+### 🧪 Interactive Learning
+- Environmental knowledge quizzes
+- Track your learning progress
+- Gamified sustainability education
+
+### 📊 User Dashboard
+- Manage your API keys
+- View conversation statistics
+- Monitor AI provider usage
+
+## 🏗️ Tech Stack
+
+- **Frontend**: React 18, TypeScript, Vite
+- **Styling**: Tailwind CSS, Radix UI, Framer Motion
+- **Backend**: Supabase (PostgreSQL, Auth, Edge Functions)
+- **AI Integration**: OpenAI, DeepSeek, Grok APIs
+- **Routing**: React Router v6
+- **State Management**: React Hooks
+- **Deployment**: Vercel
+
+## 🚀 Getting Started
 
 ### Prerequisites
-
 - Node.js 18+
 - Supabase account
-- OpenAI, DeepSeek, or Grok API key
+- API key from OpenAI, DeepSeek, or Grok
 
 ### Installation
 
@@ -42,71 +81,51 @@ GreenBot is an intelligent chat application focused on environmental sustainabil
    ```
 
 3. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   ```
 
-   Edit `.env` and add your Supabase credentials:
+   Create a `.env` file:
    ```env
    VITE_SUPABASE_URL=your_supabase_url
    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
    ```
 
-4. **Set up Supabase database**
-
-   In your Supabase SQL Editor, add the missing columns:
-   ```sql
-   ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS service TEXT DEFAULT 'openai';
-   ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS description TEXT;
-   ```
-
-5. **Deploy Supabase Edge Function**
-   ```bash
-   npx supabase login
-   npx supabase link --project-ref YOUR_PROJECT_REF
-   npx supabase functions deploy ai-chat
-   ```
-
-6. **Start the development server**
+4. **Start development server**
    ```bash
    npm run dev
    ```
 
-7. **Add your API keys**
+5. **Add your API keys**
    - Navigate to `/admin` in the app
-   - Add your OpenAI, DeepSeek, or Grok API key
-   - Test the connection
-   - Start chatting!
+   - Add your AI provider API key
+   - Start chatting with GreenBot!
 
-## 🏗️ Tech Stack
+## 📱 Usage
 
-- **Frontend**: React 18, TypeScript, Vite
-- **Styling**: Tailwind CSS, Radix UI
-- **Backend**: Supabase (Auth, Database, Edge Functions)
-- **AI APIs**: OpenAI, DeepSeek, Grok
-- **Deployment**: Vercel
+1. **Sign up** or **Sign in** with your email
+2. Go to **Settings** (`/admin`) and add your AI provider API key
+3. Choose an AI persona from the sidebar
+4. Start chatting about sustainability topics!
+5. Your conversations are automatically saved
 
-## 🚀 Deployment to Vercel
+## 🌟 Key Highlights
 
-1. **Push to GitHub** (see instructions below)
+- ✅ **Privacy-focused**: Your conversations and API keys are securely stored
+- ✅ **Multi-persona AI**: Get specialized advice from different environmental experts
+- ✅ **Real-time sync**: Conversations saved instantly across devices
+- ✅ **Customizable**: Choose your preferred AI provider
+- ✅ **Educational**: Learn about sustainability through interactive quizzes
+- ✅ **Open source**: Free to use and modify
 
-2. **Import to Vercel**
-   - Go to [vercel.com](https://vercel.com)
-   - Click "Import Project"
-   - Connect your GitHub repository
-   - Add environment variables:
-     - `VITE_SUPABASE_URL`
-     - `VITE_SUPABASE_ANON_KEY`
-   - Deploy!
+## 🤝 Contributing
 
-3. **Deploy Edge Function**
-   ```bash
-   npx supabase functions deploy ai-chat
-   ```
+Contributions are welcome! Feel free to:
+- Report bugs
+- Suggest new features
+- Submit pull requests
+- Improve documentation
 
 ## 📄 License
 
-MIT License
+MIT License - Feel free to use this project for your own purposes
 
 ---
 

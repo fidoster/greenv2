@@ -54,3 +54,10 @@ core
 
 .github/
 
+# Documentation/Analysis files (keep local only)
+*_ANALYSIS*.md
+*_SUMMARY*.md
+*_UPDATE*.md
+APP_ANALYSIS_AND_IMPROVEMENTS.md
+SECURITY_FIX_SUMMARY.md
+EMAIL_TRACKING_UPDATE.md
