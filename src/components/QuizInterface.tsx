@@ -108,6 +108,7 @@ const QuizInterface = ({
           toast({
             title: "Quiz Completed!",
             description: "Your results have been saved successfully.",
+            duration: 10000, // Show for 10 seconds
           });
         } else {
           console.error("Failed to save quiz results:", result.error);
@@ -115,6 +116,7 @@ const QuizInterface = ({
             title: "Results Saved Locally",
             description: "Could not save to database, but your score was recorded.",
             variant: "destructive",
+            duration: 10000, // Show for 10 seconds
           });
         }
       } catch (error) {
