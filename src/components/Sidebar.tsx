@@ -70,10 +70,10 @@ const Sidebar = ({
     }
   }, [chatHistory]);
 
-  const handleDeleteChat = (id: string, e: React.MouseEvent) => {
+  const handleDeleteChat = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // Update local state
+    // Update local state immediately for responsive UI
     setHistory(history.filter((chat) => chat.id !== id));
 
     // Also update parent component's state through props
@@ -89,38 +89,48 @@ const Sidebar = ({
     }
 
     try {
-      // Store deleted chat IDs in localStorage to persist across refreshes
-      const deletedChats = getDeletedChats();
+      // Check if user is authenticated
+      const { data } = await supabase.auth.getSession();
+      const isAuthenticated = !!data.session;
 
-      // Only add if not already in the list
-      if (!deletedChats.includes(id)) {
-        deletedChats.push(id);
-        localStorage.setItem(
-          LOCAL_STORAGE_KEYS.DELETED_CHATS,
-          JSON.stringify(deletedChats),
-        );
-      }
-
-      // Also update unauthenticated chats in localStorage
-      const storedChats = localStorage.getItem(
-        LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
-      );
-      if (storedChats) {
-        try {
-          const parsedChats = JSON.parse(storedChats);
-          const filteredChats = parsedChats.filter(
-            (chat: any) => chat.id !== id,
-          );
+      if (isAuthenticated) {
+        // Delete from Supabase database
+        const { deleteConversation } = await import("../lib/chat-service");
+        await deleteConversation(id);
+        console.log(`Deleted conversation ${id} from database`);
+      } else {
+        // For unauthenticated users, only update localStorage
+        const deletedChats = getDeletedChats();
+        if (!deletedChats.includes(id)) {
+          deletedChats.push(id);
           localStorage.setItem(
-            LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
-            JSON.stringify(filteredChats),
+            LOCAL_STORAGE_KEYS.DELETED_CHATS,
+            JSON.stringify(deletedChats),
           );
-        } catch (error) {
-          console.error("Error updating unauthenticated chats:", error);
+        }
+
+        // Also update unauthenticated chats in localStorage
+        const storedChats = localStorage.getItem(
+          LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
+        );
+        if (storedChats) {
+          try {
+            const parsedChats = JSON.parse(storedChats);
+            const filteredChats = parsedChats.filter(
+              (chat: any) => chat.id !== id,
+            );
+            localStorage.setItem(
+              LOCAL_STORAGE_KEYS.UNAUTHENTICATED_CHATS,
+              JSON.stringify(filteredChats),
+            );
+          } catch (error) {
+            console.error("Error updating unauthenticated chats:", error);
+          }
         }
       }
     } catch (error) {
-      console.error("Error updating chat storage:", error);
+      console.error("Error deleting conversation:", error);
+      // Optionally show error message to user
     }
   };
 
