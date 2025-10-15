@@ -43,6 +43,7 @@ const Sidebar = ({
   const [history, setHistory] = useState<ChatHistoryItem[]>([]);
   const [selectedPersona, setSelectedPersona] =
     useState<PersonaType>(initialPersona);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // Function to get deleted chats from localStorage
   const getDeletedChats = (): string[] => {
@@ -61,6 +62,18 @@ const Sidebar = ({
     const deletedChats = getDeletedChats();
     return chats.filter((chat) => !deletedChats.includes(chat.id));
   };
+
+  // Fetch user email on component mount
+  useEffect(() => {
+    const fetchUserEmail = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        setUserEmail(user.email);
+      }
+    };
+
+    fetchUserEmail();
+  }, []);
 
   // Clean up deleted chats on component mount and when chatHistory changes
   useEffect(() => {
@@ -232,6 +245,18 @@ const Sidebar = ({
         <Shield className="mr-2 h-4 w-4" />
         Admin Panel
       </Button>
+
+      {/* User Email Display */}
+      {userEmail && (
+        <div className="px-3 py-2 rounded-md bg-gray-100 dark:bg-[#2C4A3E]/50 border border-gray-200 dark:border-gray-700">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+            Signed in as
+          </div>
+          <div className="text-sm font-medium text-gray-800 dark:text-white truncate" title={userEmail}>
+            {userEmail}
+          </div>
+        </div>
+      )}
 
       <Button
         variant="ghost"
