@@ -8,13 +8,14 @@ export async function createConversation(title: string, persona: PersonaType) {
   try {
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData?.user?.id;
+    const userEmail = userData?.user?.email;
 
     if (!userId) {
       throw new Error("User not authenticated");
     }
 
     console.log(
-      `Creating conversation with title: ${title}, persona: ${persona}, userId: ${userId}`,
+      `Creating conversation with title: ${title}, persona: ${persona}, userId: ${userId}, userEmail: ${userEmail}`,
     );
 
     const { data, error } = await supabase
@@ -23,6 +24,7 @@ export async function createConversation(title: string, persona: PersonaType) {
         title,
         persona: getPersonaDisplayName(persona),
         user_id: userId,
+        user_email: userEmail || null,
       })
       .select()
       .single();
@@ -49,7 +51,11 @@ export async function saveMessage(conversationId: string, message: Message) {
       return false;
     }
 
-    console.log(`Saving message to conversation ${conversationId}:`, message);
+    // Get the current user's email
+    const { data: userData } = await supabase.auth.getUser();
+    const userEmail = userData?.user?.email;
+
+    console.log(`Saving message to conversation ${conversationId} from user ${userEmail}:`, message);
 
     // Create a message object with required fields
     const messageData = {
@@ -58,6 +64,7 @@ export async function saveMessage(conversationId: string, message: Message) {
       sender: message.sender,
       conversation_id: conversationId,
       created_at: message.timestamp.toISOString(),
+      user_email: userEmail || null,
     };
 
     // Only add the persona field if it exists in the message

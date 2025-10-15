@@ -54,6 +54,7 @@ export type Database = {
           title: string
           updated_at: string | null
           user_id: string | null
+          user_email: string | null
         }
         Insert: {
           created_at?: string | null
@@ -62,6 +63,7 @@ export type Database = {
           title?: string
           updated_at?: string | null
           user_id?: string | null
+          user_email?: string | null
         }
         Update: {
           created_at?: string | null
@@ -70,6 +72,7 @@ export type Database = {
           title?: string
           updated_at?: string | null
           user_id?: string | null
+          user_email?: string | null
         }
         Relationships: []
       }
@@ -81,6 +84,7 @@ export type Database = {
           id: string
           persona: string | null
           sender: string
+          user_email: string | null
         }
         Insert: {
           content: string
@@ -89,6 +93,7 @@ export type Database = {
           id?: string
           persona?: string | null
           sender: string
+          user_email?: string | null
         }
         Update: {
           content?: string
@@ -97,6 +102,7 @@ export type Database = {
           id?: string
           persona?: string | null
           sender?: string
+          user_email?: string | null
         }
         Relationships: [
           {
