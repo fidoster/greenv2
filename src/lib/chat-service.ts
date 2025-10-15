@@ -67,14 +67,22 @@ export async function saveMessage(conversationId: string, message: Message) {
       (messageData as any).persona = message.persona;
     }
 
-    const { error } = await supabase.from("messages").insert(messageData);
+    console.log("Attempting to insert message:", messageData);
+
+    const { data, error } = await supabase.from("messages").insert(messageData).select();
 
     if (error) {
       console.error("Error in saveMessage:", error);
+      console.error("Error details:", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
       throw error;
     }
 
-    console.log("Message saved successfully");
+    console.log("Message saved successfully:", data);
     return true;
   } catch (error) {
     console.error("Error saving message:", error);
