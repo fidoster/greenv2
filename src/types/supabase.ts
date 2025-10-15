@@ -114,6 +114,176 @@ export type Database = {
           },
         ]
       }
+      quiz_results: {
+        Row: {
+          id: string
+          user_id: string
+          user_email: string | null
+          quiz_type: string
+          quiz_title: string
+          score: number
+          total_questions: number
+          percentage: number
+          time_taken_seconds: number | null
+          attempts_count: number
+          answers: Json | null
+          completed_at: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          user_email?: string | null
+          quiz_type: string
+          quiz_title: string
+          score: number
+          total_questions: number
+          time_taken_seconds?: number | null
+          attempts_count?: number
+          answers?: Json | null
+          completed_at?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          user_email?: string | null
+          quiz_type?: string
+          quiz_title?: string
+          score?: number
+          total_questions?: number
+          time_taken_seconds?: number | null
+          attempts_count?: number
+          answers?: Json | null
+          completed_at?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_results_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      scenario_results: {
+        Row: {
+          id: string
+          user_id: string
+          user_email: string | null
+          scenario_type: string
+          scenario_id: string
+          scenario_title: string
+          category: string
+          score: number
+          max_score: number
+          percentage: number
+          decisions_made: Json | null
+          time_taken_seconds: number | null
+          completion_status: string
+          learning_points: string[] | null
+          recommendations: string[] | null
+          completed_at: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          user_email?: string | null
+          scenario_type: string
+          scenario_id: string
+          scenario_title: string
+          category: string
+          score: number
+          max_score: number
+          decisions_made?: Json | null
+          time_taken_seconds?: number | null
+          completion_status?: string
+          learning_points?: string[] | null
+          recommendations?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          user_email?: string | null
+          scenario_type?: string
+          scenario_id?: string
+          scenario_title?: string
+          category?: string
+          score?: number
+          max_score?: number
+          decisions_made?: Json | null
+          time_taken_seconds?: number | null
+          completion_status?: string
+          learning_points?: string[] | null
+          recommendations?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scenario_results_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      learning_progress: {
+        Row: {
+          id: string
+          user_id: string
+          user_email: string | null
+          total_quizzes_completed: number
+          total_scenarios_completed: number
+          quiz_progress: Json
+          achievements: string[] | null
+          current_streak: number
+          longest_streak: number
+          last_activity_at: string | null
+          updated_at: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          user_email?: string | null
+          total_quizzes_completed?: number
+          total_scenarios_completed?: number
+          quiz_progress?: Json
+          achievements?: string[] | null
+          current_streak?: number
+          longest_streak?: number
+          last_activity_at?: string | null
+          updated_at?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          user_email?: string | null
+          total_quizzes_completed?: number
+          total_scenarios_completed?: number
+          quiz_progress?: Json
+          achievements?: string[] | null
+          current_streak?: number
+          longest_streak?: number
+          last_activity_at?: string | null
+          updated_at?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_progress_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

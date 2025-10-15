@@ -22,6 +22,7 @@ import { Progress } from "./ui/progress";
 import { cn } from "@/lib/utils";
 import { Toaster } from "./ui/toaster";
 import { useToast } from "./ui/use-toast";
+import { saveQuizResult, QuizAnswer } from "../lib/quiz-service";
 
 interface QuizInterfaceProps {
   currentPersona: PersonaType;
@@ -40,6 +41,9 @@ const QuizInterface = ({
   const [userAnswers, setUserAnswers] = useState<number[]>([]);
   const [showExplanation, setShowExplanation] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
+  const [quizStartTime] = useState<number>(Date.now());
+  const [isSavingResults, setIsSavingResults] = useState(false);
+  const { toast } = useToast();
 
   // Load the quiz based on current persona
   const quiz = quizData[currentPersona];
@@ -63,7 +67,7 @@ const QuizInterface = ({
   };
 
   // Handle next question
-  const handleNextQuestion = () => {
+  const handleNextQuestion = async () => {
     setShowExplanation(false);
 
     if (currentQuestionIndex < questions.length - 1) {
@@ -76,6 +80,48 @@ const QuizInterface = ({
       const correctCount = userAnswers.reduce((count, answer, index) => {
         return count + (answer === questions[index].correctAnswerIndex ? 1 : 0);
       }, 0);
+
+      // Calculate time taken in seconds
+      const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
+
+      // Prepare detailed answers
+      const detailedAnswers: QuizAnswer[] = questions.map((question, index) => ({
+        questionId: question.id,
+        selectedAnswer: userAnswers[index],
+        correctAnswer: question.correctAnswerIndex,
+        isCorrect: userAnswers[index] === question.correctAnswerIndex,
+      }));
+
+      // Save quiz result to database
+      setIsSavingResults(true);
+      try {
+        const result = await saveQuizResult({
+          quizType: currentPersona, // PersonaType is already lowercase (greenbot, lifestyle, waste, nature, energy, climate)
+          quizTitle: quiz.title,
+          score: correctCount,
+          totalQuestions: questions.length,
+          timeTaken: timeTaken,
+          answers: detailedAnswers,
+        });
+
+        if (result.success) {
+          toast({
+            title: "Quiz Completed!",
+            description: "Your results have been saved successfully.",
+          });
+        } else {
+          console.error("Failed to save quiz results:", result.error);
+          toast({
+            title: "Results Saved Locally",
+            description: "Could not save to database, but your score was recorded.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("Error saving quiz results:", error);
+      } finally {
+        setIsSavingResults(false);
+      }
 
       // Callback with results
       if (onComplete) {
@@ -120,13 +166,15 @@ const QuizInterface = ({
     const results = calculateResults();
 
     return (
-      <div
-        className={cn(
-          "fixed inset-0 z-50 flex items-center justify-center bg-black/50",
-          className,
-        )}
-      >
-        <Card className="w-full max-w-lg mx-4 overflow-hidden">
+      <>
+        <Toaster />
+        <div
+          className={cn(
+            "fixed inset-0 z-50 flex items-center justify-center bg-black/50",
+            className,
+          )}
+        >
+          <Card className="w-full max-w-lg mx-4 overflow-hidden">
           <CardHeader className="bg-[#98C9A3]/20 dark:bg-[#2C4A3E]/30">
             <CardTitle className="text-center text-[#2C4A3E] dark:text-[#98C9A3]">
               Quiz Results
@@ -203,17 +251,20 @@ const QuizInterface = ({
           </CardFooter>
         </Card>
       </div>
+      </>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center bg-black/50",
-        className,
-      )}
-    >
-      <Card className="w-full max-w-lg mx-4 overflow-hidden">
+    <>
+      <Toaster />
+      <div
+        className={cn(
+          "fixed inset-0 z-50 flex items-center justify-center bg-black/50",
+          className,
+        )}
+      >
+        <Card className="w-full max-w-lg mx-4 overflow-hidden">
         <CardHeader className="bg-[#98C9A3]/20 dark:bg-[#2C4A3E]/30">
           <div className="flex justify-between items-center mb-2">
             <CardTitle className="text-[#2C4A3E] dark:text-[#98C9A3]">
@@ -354,6 +405,7 @@ const QuizInterface = ({
         </CardFooter>
       </Card>
     </div>
+    </>
   );
 };
 
