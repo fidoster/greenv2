@@ -118,8 +118,8 @@ const AdminPanel = () => {
             description: "OpenAI API Key",
             created_at: apiKeyData.created_at,
           });
-          // Save to localStorage for the chat interface to use
-          localStorage.setItem('openai-api-key', apiKeyData.openai_key);
+          // SECURITY: API keys are stored securely in Supabase database only
+          // They are retrieved server-side by the Edge Function when needed
         }
         if (apiKeyData.deepseek_key) {
           formattedKeys.push({
@@ -129,8 +129,7 @@ const AdminPanel = () => {
             description: "DeepSeek API Key",
             created_at: apiKeyData.created_at,
           });
-          // Save to localStorage for the chat interface to use
-          localStorage.setItem('deepseek-api-key', apiKeyData.deepseek_key);
+          // SECURITY: API keys are stored securely in Supabase database only
         }
         if (apiKeyData.grok_key) {
           formattedKeys.push({
@@ -140,8 +139,7 @@ const AdminPanel = () => {
             description: "Grok API Key",
             created_at: apiKeyData.created_at,
           });
-          // Save to localStorage for the chat interface to use
-          localStorage.setItem('grok-api-key', apiKeyData.grok_key);
+          // SECURITY: API keys are stored securely in Supabase database only
         }
       }
       setApiKeys(formattedKeys);
@@ -175,9 +173,9 @@ const AdminPanel = () => {
         service: newApiKey.service,
       });
 
-      // Also save the API key to localStorage for the chat interface to use
-      localStorage.setItem(`${newApiKey.service}-api-key`, newApiKey.key);
-      
+      // SECURITY: API key is now stored securely in Supabase database
+      // Edge Function will retrieve it server-side when needed
+
       // Reset form and refresh list
       setNewApiKey({ service: "openai", key: "", description: "" });
       await fetchApiKeys(currentUser.id);

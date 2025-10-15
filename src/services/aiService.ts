@@ -1,121 +1,139 @@
 import { supabase } from "../lib/supabase";
 
-interface ApiKeys {
-  id?: string;
-  user_id?: string;
-  deepseek_key?: string;
-  openai_key?: string;
-  grok_key?: string;
-  created_at?: string;
-  updated_at?: string;
+/**
+ * SECURITY: This service uses Supabase Edge Functions to securely call AI APIs
+ * API keys are NEVER exposed to the client/browser
+ * Keys are retrieved server-side by the Edge Function from the database
+ */
+
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
 }
 
-export async function getActiveApiKey(service: 'deepseek' | 'openai' | 'grok' = 'openai'): Promise<string | null> {
+interface EdgeFunctionResponse {
+  choices?: Array<{
+    message: {
+      content: string;
+    };
+  }>;
+  error?: string;
+  needsSetup?: boolean;
+}
+
+/**
+ * Send a chat message through the secure Edge Function
+ * @param messages - Array of chat messages
+ * @param provider - AI provider to use ('openai', 'deepseek', or 'grok')
+ * @returns AI response text
+ */
+export async function sendChatMessage(
+  messages: ChatMessage[],
+  provider: 'openai' | 'deepseek' | 'grok' = 'openai'
+): Promise<string> {
   try {
-    // Always use backend keys
-    console.log(`Getting backend API key for ${service}`);
+    console.log(`[AI Service] Calling Edge Function with provider: ${provider}`);
 
+    // Get the current session for authentication
+    const { data: { session } } = await supabase.auth.getSession();
 
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.error('No authenticated user found');
-      return null;
+    if (!session) {
+      throw new Error('You must be logged in to use the chat. Please sign in.');
     }
 
-    console.log('Fetching API keys for user:', user.id);
-    
-    // Get the backend API keys
-    const { data, error } = await supabase
-      .from('api_keys')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    
-    const apiKeys = data as ApiKeys | null;
+    // Call the Edge Function which securely retrieves API keys from database
+    const { data, error } = await supabase.functions.invoke('ai-chat', {
+      body: {
+        messages,
+        provider
+      },
+      headers: {
+        Authorization: `Bearer ${session.access_token}`
+      }
+    });
 
     if (error) {
-      console.error('Error fetching API keys:', error);
-      return null;
+      console.error('[AI Service] Edge Function error:', error);
+      throw new Error(error.message || 'Failed to connect to AI service');
     }
 
-    if (!apiKeys) {
-      console.error('No API keys found for user');
-      return null;
+    const response = data as EdgeFunctionResponse;
+
+    // Handle specific error cases
+    if (response.error) {
+      if (response.needsSetup) {
+        throw new Error('No API keys configured. Please add your API keys in Settings (/admin).');
+      }
+      throw new Error(response.error);
     }
 
-    // Return the requested API key if available
-    const backendKey = apiKeys[`${service}_key` as keyof ApiKeys];
-    if (backendKey) {
-      console.log(`Using backend ${service} key`);
-      return backendKey as string;
-    } else {
-      console.error(`No ${service} key found in backend`);
+    // Extract the AI response
+    if (response.choices && response.choices.length > 0) {
+      const aiResponse = response.choices[0].message.content;
+      console.log('[AI Service] Successfully received AI response');
+      return aiResponse;
     }
 
-    return null;
+    throw new Error('Invalid response format from AI service');
+
   } catch (error) {
-    console.error('Error getting API key:', error);
-    return null;
+    console.error('[AI Service] Error in sendChatMessage:', error);
+
+    // Provide helpful error messages
+    if (error instanceof Error) {
+      // Handle specific error cases
+      if (error.message.includes('No API keys configured')) {
+        throw new Error('No API keys configured. Please add your API keys at /admin');
+      }
+
+      if (error.message.includes('Unauthorized')) {
+        throw new Error('Session expired. Please sign in again.');
+      }
+
+      if (error.message.includes('rate limit')) {
+        throw new Error('You\'ve hit the rate limit. Please try again in a few minutes.');
+      }
+
+      if (error.message.includes('insufficient_quota') || error.message.includes('402')) {
+        throw new Error('Your API account has insufficient credits. Please add credits to your API provider account.');
+      }
+
+      throw error;
+    }
+
+    throw new Error('Failed to communicate with AI service. Please try again.');
   }
 }
 
-export async function sendChatMessage(messages: Array<{role: 'user' | 'assistant' | 'system', content: string}>) {
+/**
+ * Test API connection by sending a simple message
+ * @param provider - AI provider to test
+ * @returns Success message or throws error
+ */
+export async function testApiConnection(
+  provider: 'openai' | 'deepseek' | 'grok' = 'openai'
+): Promise<string> {
   try {
-    // First try with OpenAI
-    const openaiKey = await getActiveApiKey('openai');
-    if (openaiKey) {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openaiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4.1-nano',
-          messages,
-          temperature: 0.7,
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to fetch from OpenAI');
+    const testMessages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: 'You are a helpful assistant. Respond with just "OK" to test the connection.'
+      },
+      {
+        role: 'user',
+        content: 'Test connection'
       }
+    ];
 
-      const data = await response.json();
-      return data.choices[0].message.content;
+    const response = await sendChatMessage(testMessages, provider);
+
+    if (response) {
+      return `✓ ${provider.toUpperCase()} API connection successful!`;
     }
 
-    // If OpenAI key is not available, try with DeepSeek
-    const deepseekKey = await getActiveApiKey('deepseek');
-    if (deepseekKey) {
-      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${deepseekKey}`
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages,
-          temperature: 0.7,
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to fetch from DeepSeek');
-      }
-
-      const data = await response.json();
-      return data.choices[0].message.content;
-    }
-
-    // If no API keys are available, return an error message
-    throw new Error('No valid API key found. Please check your settings.');
+    throw new Error('No response received');
   } catch (error) {
-    console.error('Error in sendChatMessage:', error);
+    console.error(`[AI Service] ${provider} API test failed:`, error);
     throw error;
   }
 }
