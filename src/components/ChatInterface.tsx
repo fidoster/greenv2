@@ -63,6 +63,7 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [currentConversationId, setCurrentConversationId] =
     useState<string>("default");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load conversations from local storage or database when component mounts
@@ -955,21 +956,74 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
   }
 
   return (
-    <div className="flex h-screen w-full bg-[#F5F5F5] dark:bg-[#2A3130]">
-      {/* Sidebar */}
-      <Sidebar
-        chatHistory={chatHistory}
-        onNewChat={handleNewChat}
-        onSelectChat={handleSelectChat}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        initialPersona={currentPersona}
-        onSelectPersona={handlePersonaChange}
-      />
+    <div className="flex h-screen w-full bg-[#F5F5F5] dark:bg-[#2A3130] relative">
+      {/* Mobile Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - Hidden on mobile by default, slides in when open */}
+      <div
+        className={`
+          fixed lg:relative
+          inset-y-0 left-0
+          z-50 lg:z-auto
+          transform transition-transform duration-300 ease-in-out
+          ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+      >
+        <Sidebar
+          chatHistory={chatHistory}
+          onNewChat={() => {
+            handleNewChat();
+            setIsMobileSidebarOpen(false);
+          }}
+          onSelectChat={(id) => {
+            handleSelectChat(id);
+            setIsMobileSidebarOpen(false);
+          }}
+          onOpenSettings={() => {
+            setIsSettingsOpen(true);
+            setIsMobileSidebarOpen(false);
+          }}
+          initialPersona={currentPersona}
+          onSelectPersona={handlePersonaChange}
+        />
+      </div>
 
       {/* Chat Area */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        {/* Quiz Button at the top */}
-        <div className="flex justify-between items-center p-2 bg-white dark:bg-[#2A3130] border-b border-[#E0E0E0] dark:border-[#3A4140]">
+      <div className="flex-1 overflow-hidden flex flex-col w-full lg:w-auto">
+        {/* Header with Hamburger Menu and Quiz Button */}
+        <div className="flex justify-between items-center p-2 sm:p-3 bg-white dark:bg-[#2A3130] border-b border-[#E0E0E0] dark:border-[#3A4140]">
+          {/* Hamburger Menu - Only visible on mobile */}
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="lg:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-[#2C4A3E] transition-colors"
+            aria-label="Open menu"
+          >
+            <svg
+              className="w-6 h-6 text-gray-600 dark:text-gray-300"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          </button>
+
+          {/* Chat Title - Hidden on small mobile */}
+          <div className="hidden sm:block flex-1 text-center lg:text-left px-4">
+            <h2 className="text-sm sm:text-base font-medium text-gray-800 dark:text-white truncate">
+              {chatHistory.find((chat) => chat.selected)?.title || "New Conversation"}
+            </h2>
+          </div>
+
           <QuizButton
             onStartQuiz={handleStartQuiz}
             currentPersona={currentPersona}
