@@ -191,16 +191,16 @@ const ChatArea = ({
       <div className="flex items-center justify-between p-3 border-b border-[#E0E0E0] dark:border-[#3A4140] bg-white dark:bg-[#2A3130]">
         <div className="flex items-center space-x-2">
           {currentPersona === "GreenBot" && (
-            <Leaf className="h-5 w-5 text-[#98C9A3]" />
+            <Leaf className="h-5 w-5 text-[#F6C344]" />
           )}
           {currentPersona === "EcoLife Guide" && (
-            <Home className="h-5 w-5 text-[#8BA888]" />
+            <Home className="h-5 w-5 text-[#F6C344]" />
           )}
           {currentPersona === "Waste Wizard" && (
-            <Recycle className="h-5 w-5 text-[#2C4A3E]" />
+            <Recycle className="h-5 w-5 text-[#F6C344]" />
           )}
           {currentPersona === "Nature Navigator" && (
-            <Droplet className="h-5 w-5 text-[#6AADCB]" />
+            <Droplet className="h-5 w-5 text-[#F6C344]" />
           )}
           {currentPersona === "Power Sage" && (
             <svg
@@ -237,7 +237,7 @@ const ChatArea = ({
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="h-5 w-5 text-[#5D93E1]"
+              className="h-5 w-5 text-[#F6C344]"
             >
               <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
             </svg>
@@ -400,16 +400,16 @@ const ChatArea = ({
               className="pr-10 bg-[#F5F5F5] dark:bg-[#343C3B] border-[#E0E0E0] dark:border-[#4A5250] rounded-xl"
             />
             {currentPersona === "GreenBot" && (
-              <Leaf className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#98C9A3] opacity-70" />
+              <Leaf className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#F6C344] opacity-70" />
             )}
             {currentPersona === "EcoLife Guide" && (
-              <Home className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#8BA888] opacity-70" />
+              <Home className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#F6C344] opacity-70" />
             )}
             {currentPersona === "Waste Wizard" && (
-              <Recycle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#2C4A3E] opacity-70" />
+              <Recycle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#F6C344] opacity-70" />
             )}
             {currentPersona === "Nature Navigator" && (
-              <Droplet className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#6AADCB] opacity-70" />
+              <Droplet className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#F6C344] opacity-70" />
             )}
             {currentPersona === "Power Sage" && (
               <svg
@@ -446,7 +446,7 @@ const ChatArea = ({
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#5D93E1] opacity-70"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#F6C344] opacity-70"
               >
                 <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
               </svg>
