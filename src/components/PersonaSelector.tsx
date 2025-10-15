@@ -30,6 +30,10 @@ const PersonaSelector = ({
   onSelectPersona,
   className,
 }: PersonaSelectorProps) => {
+  // Unified yellow highlight color for all selected advisors
+  const selectedHighlightColor = "#F6C344";
+  const selectedHighlightColorDark = "#D6A324";
+
   const personas: Persona[] = [
     {
       id: "greenbot",
@@ -139,11 +143,11 @@ const PersonaSelector = ({
             style={{
               borderColor:
                 selectedPersona === persona.id
-                  ? `var(--tw-prose-headings, ${persona.lightColor})`
+                  ? `var(--tw-prose-headings, ${selectedHighlightColorDark})`
                   : "transparent",
               boxShadow:
                 selectedPersona === persona.id
-                  ? `0 4px 12px ${persona.lightColor}40, inset 0 -2px 5px rgba(0,0,0,0.05)`
+                  ? `0 4px 12px ${selectedHighlightColorDark}40, inset 0 -2px 5px rgba(0,0,0,0.05)`
                   : "0 2px 4px rgba(0,0,0,0.1), inset 0 -2px 5px rgba(0,0,0,0.05)",
               transform: `translateY(${selectedPersona === persona.id ? "0" : "1px"})`,
             }}
@@ -153,15 +157,15 @@ const PersonaSelector = ({
               style={{
                 color:
                   selectedPersona === persona.id
-                    ? `var(--tw-prose-headings, ${persona.lightColor})`
+                    ? `var(--tw-prose-headings, ${selectedHighlightColorDark})`
                     : "var(--muted-foreground, #64748b)",
                 background:
                   selectedPersona === persona.id
-                    ? `linear-gradient(135deg, ${persona.lightColor}20, transparent)`
+                    ? `linear-gradient(135deg, ${selectedHighlightColor}20, transparent)`
                     : "linear-gradient(135deg, rgba(255,255,255,0.2), transparent)",
                 boxShadow:
                   selectedPersona === persona.id
-                    ? `0 2px 8px ${persona.lightColor}30`
+                    ? `0 2px 8px ${selectedHighlightColor}30`
                     : "0 2px 4px rgba(0,0,0,0.05)",
               }}
             >
@@ -172,7 +176,7 @@ const PersonaSelector = ({
               style={{
                 textShadow:
                   selectedPersona === persona.id
-                    ? `0 0 8px ${persona.lightColor}30`
+                    ? `0 0 8px ${selectedHighlightColor}30`
                     : "none",
               }}
             >
