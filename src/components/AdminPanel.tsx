@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { Key, Loader2, AlertTriangle } from "lucide-react";
+import { Key, Loader2, AlertTriangle, Home, ArrowLeft, Leaf } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface ApiKey {
   id: string;
@@ -36,6 +37,7 @@ interface FormattedApiKey {
 }
 
 const AdminPanel = () => {
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [apiKeys, setApiKeys] = useState<FormattedApiKey[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -266,33 +268,62 @@ const AdminPanel = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 bg-[#f0f7f2] dark:bg-[#1f2a28] min-h-screen">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-[#2C4A3E] dark:text-white flex items-center">
-          <Key className="w-8 h-8 mr-3 text-[#4B9460]" />
-          API Key Management
-        </h1>
-        {error && (
-          <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg">
-            <div className="flex items-start space-x-3">
-              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-500 mt-0.5" />
-              <div>
-                <p className="text-red-700 dark:text-red-300">
-                  {error ? (typeof error === 'object' && error !== null && 'message' in error 
-                    ? String((error as { message: string }).message)
-                    : String(error)) : 'An unknown error occurred'}
-                </p>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#f0f7f2] to-[#e8f5e9] dark:from-[#1f2a28] dark:to-[#2a3b35]">
+      <div className="container mx-auto p-6 max-w-4xl">
+        {/* Header with Home Button */}
+        <header className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <Button
+              onClick={() => navigate('/')}
+              variant="ghost"
+              className="flex items-center gap-2 text-[#4B9460] dark:text-[#98C9A3] hover:bg-[#4B9460]/10"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Home
+            </Button>
+            <div className="flex items-center gap-2 text-[#4B9460] dark:text-[#98C9A3]">
+              <Leaf className="w-6 h-6" />
+              <span className="font-semibold">GreenBot</span>
             </div>
           </div>
-        )}
-      </header>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Add/Update API Key</CardTitle>
+          <div className="bg-white dark:bg-[#2a3b35] rounded-lg shadow-lg p-6">
+            <h1 className="text-3xl font-bold text-[#2C4A3E] dark:text-white flex items-center">
+              <Key className="w-8 h-8 mr-3 text-[#4B9460]" />
+              API Key Management
+            </h1>
+            <p className="mt-2 text-gray-600 dark:text-gray-300">
+              Manage your AI service API keys for {currentUser?.email || 'your account'}
+            </p>
+          </div>
+
+          {error && (
+            <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg shadow">
+              <div className="flex items-start space-x-3">
+                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-red-800 dark:text-red-300">
+                    {error ? (typeof error === 'object' && error !== null && 'message' in error
+                      ? String((error as { message: string }).message)
+                      : String(error)) : 'An unknown error occurred'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </header>
+
+      <Card className="mb-8 shadow-lg border-t-4 border-t-[#4B9460]">
+        <CardHeader className="bg-gradient-to-r from-[#f8fdf9] to-white dark:from-[#2a3b35] dark:to-[#2a3b35]">
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-[#4B9460]" />
+            Add/Update API Key
+          </CardTitle>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+            Add your AI service API keys to enable chat functionality
+          </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="space-y-4">
             <div>
               <Label htmlFor="service">Service</Label>
@@ -344,11 +375,13 @@ const AdminPanel = () => {
             <Button
               onClick={handleAddApiKey}
               disabled={isSaving || !newApiKey.key}
-              className="w-full"
+              className="w-full bg-[#4B9460] hover:bg-[#3A7348] text-white font-semibold"
             >
               {isSaving ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
+              ) : (
+                <Key className="mr-2 h-4 w-4" />
+              )}
               {isSaving ? "Saving..." : "Save API Key"}
             </Button>
           </div>
@@ -356,11 +389,17 @@ const AdminPanel = () => {
       </Card>
 
       {/* Display Existing API Keys */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Current API Keys</CardTitle>
+      <Card className="shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-[#f8fdf9] to-white dark:from-[#2a3b35] dark:to-[#2a3b35]">
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-[#4B9460]" />
+            Current API Keys
+          </CardTitle>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+            {apiKeys.length > 0 ? `You have ${apiKeys.length} API key(s) configured` : 'No API keys configured yet'}
+          </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {apiKeys.length > 0 ? (
             <ul className="space-y-3">
               {apiKeys.map((apiKey) => (
@@ -399,6 +438,7 @@ const AdminPanel = () => {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };
