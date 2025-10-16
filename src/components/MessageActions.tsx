@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "./ui/button";
-import { ThumbsUp, ThumbsDown, Copy, RefreshCw, Check } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Copy, Check } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -12,7 +12,6 @@ interface MessageActionsProps {
   onLike?: () => void;
   onDislike?: () => void;
   onCopy?: () => void;
-  onRegenerate?: () => void;
   className?: string;
 }
 
@@ -20,7 +19,6 @@ const MessageActions = ({
   onLike = () => {},
   onDislike = () => {},
   onCopy = () => {},
-  onRegenerate = () => {},
   className = "",
 }: MessageActionsProps) => {
   const [liked, setLiked] = useState(false);
@@ -103,25 +101,6 @@ const MessageActions = ({
           </TooltipTrigger>
           <TooltipContent side="bottom">
             <p>Copy to clipboard</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={onRegenerate}
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-full hover:bg-purple-100 hover:text-purple-600 dark:hover:bg-purple-900/30 dark:hover:text-purple-400"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              <span className="sr-only">Regenerate</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p>Regenerate response</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

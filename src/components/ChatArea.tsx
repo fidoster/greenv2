@@ -363,10 +363,6 @@ const ChatArea = ({
                           navigator.clipboard.writeText(message.content);
                           console.log("Copied message:", message.id);
                         }}
-                        onRegenerate={() => {
-                          console.log("Regenerate message:", message.id);
-                          // Add regeneration functionality here
-                        }}
                         className="opacity-100"
                       />
                     </div>
