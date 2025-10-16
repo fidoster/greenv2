@@ -15,7 +15,7 @@ type ThemeProviderState = {
 };
 
 const initialState: ThemeProviderState = {
-  theme: "light",
+  theme: "dark",
   setTheme: () => null,
   toggleTheme: () => null,
 };
@@ -25,7 +25,7 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 // Export as a named function component for Fast Refresh compatibility
 export const ThemeProvider = ({
   children,
-  defaultTheme = "light",
+  defaultTheme = "dark",
   storageKey = "greenbot-ui-theme",
   ...props
 }: ThemeProviderProps) => {

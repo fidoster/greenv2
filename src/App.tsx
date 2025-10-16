@@ -73,7 +73,7 @@ function App() {
   }, []);
 
   return (
-    <ThemeProvider defaultTheme="light" storageKey="greenbot-ui-theme">
+    <ThemeProvider defaultTheme="dark" storageKey="greenbot-ui-theme">
       <Suspense
         fallback={
           <div className="flex items-center justify-center min-h-screen">
