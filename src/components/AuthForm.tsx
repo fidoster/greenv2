@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "../lib/supabase";
-import { Leaf } from "lucide-react";
+import { Leaf, User } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { Button } from "./ui/button";
 
 interface AuthFormProps {
   onAuthSuccess?: () => void;
@@ -11,6 +12,7 @@ interface AuthFormProps {
 
 const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
 
   // Listen for authentication state changes
   supabase.auth.onAuthStateChange((event) => {
@@ -18,6 +20,19 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
       onAuthSuccess();
     }
   });
+
+  const handleGuestLogin = async () => {
+    setIsGuestLoading(true);
+    try {
+      const { error } = await supabase.auth.signInAnonymously();
+      if (error) throw error;
+      // onAuthStateChange will handle redirection
+    } catch (error) {
+      console.error("Guest login error:", error);
+    } finally {
+      setIsGuestLoading(false);
+    }
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-6 relative overflow-hidden">
@@ -164,6 +179,36 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
             redirectTo={window.location.origin}
           />
         </div>
+
+        <div className="relative my-2">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-gray-300 dark:border-gray-600"></span>
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-white/90 dark:bg-[#3A4140]/90 px-2 text-gray-500 dark:text-gray-400">
+              Or continue as
+            </span>
+          </div>
+        </div>
+
+        <Button
+          onClick={handleGuestLogin}
+          disabled={isLoading || isGuestLoading}
+          variant="outline"
+          className="w-full mt-2 border-[#8BA888] text-[#2C4A3E] hover:bg-[#8BA888]/10 dark:text-[#8BA888] dark:border-[#8BA888]/50 dark:hover:bg-[#8BA888]/10 flex items-center justify-center gap-2"
+        >
+          {isGuestLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-current"></div>
+              <span>Signing in...</span>
+            </>
+          ) : (
+            <>
+              <User className="w-4 h-4" />
+              <span>Guest Login</span>
+            </>
+          )}
+        </Button>
 
         <div className="pt-4 mt-6 text-xs text-center text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
           <p>
