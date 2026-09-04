@@ -2,7 +2,26 @@ import { supabase } from "./supabase";
 import { Message } from "../hooks/useChatState";
 import { PersonaType } from "../components/PersonaSelector";
 import { getPersonaDisplayName } from "../utils/personaUtils";
-import { getActiveStudySession } from "./study-session";
+import { getActiveStudySession, StudySession } from "./study-session";
+
+// Last line of defence for data integrity: a row may only carry a pid if the
+// signed-in account IS that participant. The cached study session survives a
+// sign-out, so without this an admin or guest on a tab previously used for
+// participant testing could write rows tagged with someone else's pid --
+// fabricated participants in the dataset, discovered only at analysis time.
+const PARTICIPANT_EMAIL_DOMAIN = "participants.greenbot.study";
+
+function studyTagFor(email: string | undefined): StudySession | null {
+  const study = getActiveStudySession();
+  if (!study) return null;
+  if (email !== `${study.pid}@${PARTICIPANT_EMAIL_DOMAIN}`) {
+    console.warn(
+      `Refusing to tag a row with pid ${study.pid}: signed in as ${email ?? "unknown"}.`,
+    );
+    return null;
+  }
+  return study;
+}
 
 // Create a new conversation
 export async function createConversation(title: string, persona: PersonaType) {
@@ -21,7 +40,7 @@ export async function createConversation(title: string, persona: PersonaType) {
 
     // Study sessions are tagged with pid + scenario and never carry an email:
     // the pid is the only identifier we are allowed to store.
-    const study = getActiveStudySession();
+    const study = studyTagFor(userEmail);
 
     const { data, error } = await supabase
       .from("conversations")
@@ -65,7 +84,7 @@ export async function saveMessage(conversationId: string, message: Message) {
     // Every message written during a study session carries the pid and
     // scenario, so the chat log joins to the Qualtrics export directly.
     // Tagging here rather than at the call sites means no write can miss it.
-    const study = getActiveStudySession();
+    const study = studyTagFor(userEmail);
 
     console.log(
       `Saving message to conversation ${conversationId}${study ? ` (study pid ${study.pid})` : ` from user ${userEmail}`}:`,

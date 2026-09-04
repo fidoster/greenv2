@@ -132,6 +132,56 @@ export async function recoverStudySessionFromUser(): Promise<StudySession | null
   }
 }
 
+/**
+ * The study session for whoever is signed in RIGHT NOW.
+ *
+ * The signed-in user is the source of truth, never the cache. sessionStorage
+ * survives a sign-out and a sign-in as somebody else, so trusting it directly
+ * meant an admin logging in on a tab that had been used for participant
+ * testing was shown as that participant -- and, far worse, their messages
+ * would have been tagged with that participant's pid.
+ *
+ * The cached value may only supply the scenario, and only when its pid agrees
+ * with the signed-in account.
+ */
+export async function resolveStudySessionForCurrentUser(): Promise<StudySession | null> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    const email = data?.user?.email ?? "";
+
+    if (!email.endsWith(`@${PARTICIPANT_EMAIL_DOMAIN}`)) {
+      // An admin, a guest, or a regular user. Any cached study session belongs
+      // to an earlier session in this tab and must not be applied to them.
+      clearStudySession();
+      return null;
+    }
+
+    const pid = email.split("@")[0];
+    if (!isValidPid(pid)) {
+      clearStudySession();
+      return null;
+    }
+
+    const cached = readStored();
+    const scenario =
+      cached && cached.pid === pid
+        ? cached.scenario
+        : toScenario(data?.user?.user_metadata?.study_scenario);
+
+    if (scenario === null) {
+      clearStudySession();
+      return null;
+    }
+
+    const session: StudySession = { pid, scenario };
+    writeStored(session);
+    return session;
+  } catch {
+    clearStudySession();
+    return null;
+  }
+}
+
 interface StudyAuthResponse {
   access_token?: string;
   refresh_token?: string;

@@ -4,8 +4,8 @@ import ChatInterface from "./ChatInterface";
 import { supabase } from "../lib/supabase";
 import {
   StudySession,
-  getActiveStudySession,
-  recoverStudySessionFromUser,
+  clearStudySession,
+  resolveStudySessionForCurrentUser,
   startStudySessionFromUrl,
   urlHasStudyParams,
 } from "../lib/study-session";
@@ -57,13 +57,14 @@ const Home = ({ initialAuthenticated = false }: HomeProps) => {
       const authed = !!data.session;
       setIsAuthenticated(authed);
 
-      // A returning participant may hold a session but no cached pid, for
-      // example after closing the tab. Rebuild it so their ID stays visible
-      // and their messages stay tagged.
+      // Resolved from the signed-in user, never from the cache alone: an
+      // admin signing in on a tab previously used for participant testing
+      // must not inherit that participant's identity.
       if (authed) {
-        const recovered =
-          getActiveStudySession() ?? (await recoverStudySessionFromUser());
-        if (!cancelled && recovered) setStudySession(recovered);
+        const resolved = await resolveStudySessionForCurrentUser();
+        if (!cancelled) setStudySession(resolved);
+      } else {
+        clearStudySession();
       }
 
       if (!cancelled) setIsLoading(false);
@@ -75,7 +76,12 @@ const Home = ({ initialAuthenticated = false }: HomeProps) => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setIsAuthenticated(!!session);
-        if (!session) setStudySession(null);
+        if (!session) {
+          // sessionStorage otherwise survives a sign-out and would be picked
+          // up by whoever signs in next on this tab.
+          clearStudySession();
+          setStudySession(null);
+        }
       },
     );
 
@@ -86,9 +92,14 @@ const Home = ({ initialAuthenticated = false }: HomeProps) => {
   }, []);
 
   const handleAuthSuccess = async () => {
-    setIsAuthenticated(true);
     setStudyError(null);
-    setStudySession(getActiveStudySession());
+    // Hold the loading state until the identity is resolved, so the chat never
+    // mounts with a study session belonging to a previous sign-in.
+    setIsLoading(true);
+    const resolved = await resolveStudySessionForCurrentUser();
+    setStudySession(resolved);
+    setIsAuthenticated(true);
+    setIsLoading(false);
   };
 
   if (isLoading) {
