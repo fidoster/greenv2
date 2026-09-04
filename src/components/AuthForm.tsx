@@ -2,17 +2,23 @@ import { useState } from "react";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "../lib/supabase";
-import { Leaf, User } from "lucide-react";
+import { Leaf, User, ClipboardList } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { PID_PATTERN, signInWithParticipantId } from "../lib/study-session";
 
 interface AuthFormProps {
   onAuthSuccess?: () => void;
+  initialError?: string | null;
 }
 
-const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
+const AuthForm = ({ onAuthSuccess, initialError = null }: AuthFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGuestLoading, setIsGuestLoading] = useState(false);
+  const [participantId, setParticipantId] = useState("");
+  const [isStudyLoading, setIsStudyLoading] = useState(false);
+  const [studyError, setStudyError] = useState<string | null>(initialError);
 
   // Listen for authentication state changes
   supabase.auth.onAuthStateChange((event) => {
@@ -31,6 +37,34 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
       console.error("Guest login error:", error);
     } finally {
       setIsGuestLoading(false);
+    }
+  };
+
+  // Study participants returning without their Qualtrics link sign in with
+  // the participant ID they were given.
+  const handleParticipantLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStudyError(null);
+
+    const pid = participantId.trim();
+    if (!PID_PATTERN.test(pid)) {
+      setStudyError("Participant ID must be exactly 6 digits.");
+      return;
+    }
+
+    setIsStudyLoading(true);
+    try {
+      await signInWithParticipantId(pid);
+      onAuthSuccess?.();
+    } catch (error) {
+      console.error("Participant ID login error:", error);
+      setStudyError(
+        error instanceof Error
+          ? error.message
+          : "Could not start your study session.",
+      );
+    } finally {
+      setIsStudyLoading(false);
     }
   };
 
@@ -190,6 +224,57 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
             </span>
           </div>
         </div>
+
+        {/* Study participants returning to an existing session */}
+        <form onSubmit={handleParticipantLogin} className="space-y-2">
+          <label
+            htmlFor="participant-id"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            Study participant
+          </label>
+          <div className="flex gap-2">
+            <Input
+              id="participant-id"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={6}
+              placeholder="6-digit ID"
+              value={participantId}
+              onChange={(e) => {
+                setParticipantId(e.target.value.replace(/[^0-9]/g, ""));
+                if (studyError) setStudyError(null);
+              }}
+              className="bg-transparent dark:text-white dark:border-[#4A5654] dark:focus:border-[#8BA888] tracking-widest"
+            />
+            <Button
+              type="submit"
+              disabled={isStudyLoading || participantId.length !== 6}
+              className="bg-[#2C4A3E] hover:bg-[#8BA888] text-white dark:bg-[#8BA888] dark:hover:bg-[#98C9A3] dark:text-[#2F3635] flex items-center gap-2 shrink-0"
+            >
+              {isStudyLoading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-current"></div>
+              ) : (
+                <ClipboardList className="w-4 h-4" />
+              )}
+              <span>Continue</span>
+            </Button>
+          </div>
+
+          {studyError && (
+            <p
+              role="alert"
+              className="text-xs text-red-600 dark:text-red-400 leading-snug"
+            >
+              {studyError}
+            </p>
+          )}
+
+          <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug">
+            Enter the participant ID from your questionnaire to return to your
+            conversation.
+          </p>
+        </form>
 
         <Button
           onClick={handleGuestLogin}

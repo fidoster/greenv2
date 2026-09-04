@@ -2,6 +2,13 @@ import React, { useState, useEffect } from "react";
 import AuthForm from "./AuthForm";
 import ChatInterface from "./ChatInterface";
 import { supabase } from "../lib/supabase";
+import {
+  StudySession,
+  getActiveStudySession,
+  recoverStudySessionFromUser,
+  startStudySessionFromUrl,
+  urlHasStudyParams,
+} from "../lib/study-session";
 
 interface HomeProps {
   initialAuthenticated?: boolean;
@@ -10,13 +17,56 @@ interface HomeProps {
 const Home = ({ initialAuthenticated = false }: HomeProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(initialAuthenticated);
   const [isLoading, setIsLoading] = useState(true);
+  const [studySession, setStudySession] = useState<StudySession | null>(null);
+  const [studyError, setStudyError] = useState<string | null>(null);
 
   // Check if user is authenticated with Supabase
   useEffect(() => {
+    let cancelled = false;
+
     const checkAuth = async () => {
+      // Study entry: a valid 6-digit pid in the URL skips the login screen.
+      // Anything else falls through to the normal flow below.
+      if (urlHasStudyParams()) {
+        try {
+          const session = await startStudySessionFromUrl();
+          if (cancelled) return;
+
+          if (session) {
+            setStudySession(session);
+            setIsAuthenticated(true);
+            setIsLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.error("Study session could not be started:", error);
+          if (cancelled) return;
+          // Fall through to the login screen rather than stranding the
+          // student on a dead page.
+          setStudyError(
+            error instanceof Error
+              ? error.message
+              : "Could not start your study session.",
+          );
+        }
+      }
+
       const { data } = await supabase.auth.getSession();
-      setIsAuthenticated(!!data.session);
-      setIsLoading(false);
+      if (cancelled) return;
+
+      const authed = !!data.session;
+      setIsAuthenticated(authed);
+
+      // A returning participant may hold a session but no cached pid, for
+      // example after closing the tab. Rebuild it so their ID stays visible
+      // and their messages stay tagged.
+      if (authed) {
+        const recovered =
+          getActiveStudySession() ?? (await recoverStudySessionFromUser());
+        if (!cancelled && recovered) setStudySession(recovered);
+      }
+
+      if (!cancelled) setIsLoading(false);
     };
 
     checkAuth();
@@ -25,16 +75,20 @@ const Home = ({ initialAuthenticated = false }: HomeProps) => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setIsAuthenticated(!!session);
+        if (!session) setStudySession(null);
       },
     );
 
     return () => {
+      cancelled = true;
       authListener.subscription.unsubscribe();
     };
   }, []);
 
-  const handleAuthSuccess = () => {
+  const handleAuthSuccess = async () => {
     setIsAuthenticated(true);
+    setStudyError(null);
+    setStudySession(getActiveStudySession());
   };
 
   if (isLoading) {
@@ -49,10 +103,13 @@ const Home = ({ initialAuthenticated = false }: HomeProps) => {
     <div className="min-h-screen bg-[#F5F5F5] dark:bg-[#2F3635]">
       {!isAuthenticated ? (
         <div className="relative">
-          <AuthForm onAuthSuccess={handleAuthSuccess} />
+          <AuthForm
+            onAuthSuccess={handleAuthSuccess}
+            initialError={studyError}
+          />
         </div>
       ) : (
-        <ChatInterface />
+        <ChatInterface studySession={studySession} />
       )}
     </div>
   );
