@@ -574,6 +574,12 @@ const ChatInterface = ({
       );
       console.log("Current conversation ID:", currentConversationId);
 
+      // setCurrentConversationId below does not update this closure, so every
+      // save in this function must go through activeConversationId instead.
+      // Reading the state variable here sent "default" to saveMessage, whose
+      // UUID guard silently dropped the first message pair of every chat.
+      let activeConversationId = currentConversationId;
+
       // If no conversation exists yet but user is authenticated, create one
       if (
         isAuthenticated &&
@@ -592,6 +598,7 @@ const ChatInterface = ({
           console.log("Created conversation:", conversation);
 
           if (conversation && conversation.id) {
+            activeConversationId = conversation.id;
             setCurrentConversationId(conversation.id);
             console.log("Set current conversation ID to:", conversation.id);
 
@@ -719,11 +726,11 @@ const ChatInterface = ({
         saveToLocalStorage(selectedChat.id, newTitle, updatedMessages);
 
         // If authenticated, update the conversation in Supabase
-        if (isAuthenticated && currentConversationId) {
+        if (isAuthenticated && activeConversationId && activeConversationId !== "default") {
           try {
             console.log(
               "Saving messages to conversation:",
-              currentConversationId,
+              activeConversationId,
             );
             const { saveMessage } = await import("../lib/chat-service");
 
@@ -734,7 +741,7 @@ const ChatInterface = ({
                 title: newTitle,
                 updated_at: new Date().toISOString(),
               })
-              .eq("id", currentConversationId);
+              .eq("id", activeConversationId);
 
             if (error) {
               console.error("Error updating conversation title:", error);
@@ -744,9 +751,9 @@ const ChatInterface = ({
 
             // Save both messages
             console.log("Saving user message:", userMessage);
-            await saveMessage(currentConversationId, userMessage);
+            await saveMessage(activeConversationId, userMessage);
             console.log("Saving bot message:", botMessage);
-            await saveMessage(currentConversationId, botMessage);
+            await saveMessage(activeConversationId, botMessage);
           } catch (error) {
             console.error("Error updating conversation in Supabase:", error);
           }
@@ -764,25 +771,25 @@ const ChatInterface = ({
         );
 
         // If authenticated, save the messages to Supabase
-        if (isAuthenticated && currentConversationId && currentConversationId !== "default") {
+        if (isAuthenticated && activeConversationId && activeConversationId !== "default") {
           try {
             console.log(
               "Saving messages to existing conversation:",
-              currentConversationId,
+              activeConversationId,
             );
             const { saveMessage } = await import("../lib/chat-service");
 
             console.log("Saving user message:", userMessage);
-            await saveMessage(currentConversationId, userMessage);
+            await saveMessage(activeConversationId, userMessage);
 
             console.log("Saving bot message:", botMessage);
-            await saveMessage(currentConversationId, botMessage);
+            await saveMessage(activeConversationId, botMessage);
 
             // Update the conversation's updated_at timestamp
             const { data, error } = await supabase
               .from("conversations")
               .update({ updated_at: new Date().toISOString() })
-              .eq("id", currentConversationId);
+              .eq("id", activeConversationId);
 
             if (error) {
               console.error("Error updating conversation timestamp:", error);
