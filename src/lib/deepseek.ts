@@ -12,6 +12,7 @@ export interface DeepseekMessage {
 
 export interface DeepseekResponse {
   id: string;
+  model?: string;
   choices: {
     message: {
       role: string;
@@ -26,11 +27,18 @@ export interface DeepseekResponse {
   };
 }
 
+export interface AiReply {
+  content: string;
+  /** The model that actually answered. Differs from the requested provider
+   *  when the Edge Function failed over to its backup. */
+  model: string | null;
+}
+
 export async function callDeepseekAPI(
   messages: DeepseekMessage[],
   apiKey: string,
   provider: "deepseek" | "openai" | "grok" = "deepseek",
-): Promise<string> {
+): Promise<AiReply> {
   // Use Supabase Edge Function as proxy to avoid CORS issues
   const useBackendKeys = localStorage.getItem(`use-backend-${provider}`) !== "false";
 
@@ -67,7 +75,10 @@ export async function callDeepseekAPI(
         }
 
         const data: DeepseekResponse = await response.json();
-        return data.choices[0].message.content;
+        return {
+          content: data.choices[0].message.content,
+          model: data.model ?? null,
+        };
       }
     } catch (error) {
       console.error("Error calling Edge Function:", error);
@@ -122,7 +133,7 @@ export async function callDeepseekAPI(
     }
 
     const data: DeepseekResponse = await response.json();
-    return data.choices[0].message.content;
+    return { content: data.choices[0].message.content, model: data.model ?? null };
   } catch (error) {
     console.error(`Error calling ${provider.toUpperCase()} API:`, error);
     throw error;

@@ -366,6 +366,7 @@ const StudyDataPanel = () => {
                     <th className="py-2 pr-3 font-medium">Participant</th>
                     <th className="py-2 pr-3 font-medium">Scenario</th>
                     <th className="py-2 pr-3 font-medium">Advisors used</th>
+                    <th className="py-2 pr-3 font-medium">Model</th>
                     <th className="py-2 pr-3 font-medium text-right">Msgs</th>
                     <th className="py-2 pr-3 font-medium">Started</th>
                     <th className="py-2 font-medium">Last activity</th>
@@ -417,6 +418,30 @@ const StudyDataPanel = () => {
                               )}
                             </div>
                           </td>
+                          <td className="py-2.5 pr-3">
+                            <div className="flex flex-wrap gap-1">
+                              {s.models.length > 0 ? (
+                                s.models.map((m) => (
+                                  <Badge
+                                    key={m}
+                                    variant="outline"
+                                    // More than one model means a failover
+                                    // happened mid-session, which matters when
+                                    // comparing transcripts.
+                                    className={`font-mono font-normal text-[10px] px-1.5 py-0 ${
+                                      s.models.length > 1
+                                        ? "border-amber-400/60 text-amber-700 dark:text-amber-400 bg-amber-400/10"
+                                        : ""
+                                    }`}
+                                  >
+                                    {m}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </div>
+                          </td>
                           <td className="py-2.5 pr-3 text-right tabular-nums text-gray-600 dark:text-gray-300">
                             {s.participantMessages}
                             <span className="text-gray-400">
@@ -434,7 +459,7 @@ const StudyDataPanel = () => {
                         {isOpen && (
                           <tr>
                             <td
-                              colSpan={7}
+                              colSpan={8}
                               className="bg-gray-50 dark:bg-[#232927] px-4 py-4"
                             >
                               <div className="max-h-[420px] overflow-y-auto space-y-3 pr-2">
@@ -461,6 +486,11 @@ const StudyDataPanel = () => {
                                         <span>
                                           {formatDateTime(m.created_at)}
                                         </span>
+                                        {m.model && (
+                                          <span className="font-mono opacity-70">
+                                            {m.model}
+                                          </span>
+                                        )}
                                       </div>
                                       <div
                                         className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words ${

@@ -26,6 +26,8 @@ interface ChatMessage {
   sender: "user" | "bot";
   timestamp: Date;
   persona?: "GreenBot" | "EcoLife Guide" | "Waste Wizard" | "Nature Navigator" | "Power Sage" | "Climate Guardian";
+  /** Model that produced a bot reply, e.g. after a failover to Grok. */
+  model?: string | null;
 }
 
 interface ChatHistoryItem {
@@ -619,6 +621,9 @@ const ChatInterface = ({
       }
 
       let apiResponse;
+      // Which model actually replied. Null when the canned fallback text is
+      // used, so an API failure is never mistaken for a model's answer.
+      let answeredByModel: string | null = null;
 
       // Use the existing API integration
       if (true) {
@@ -664,11 +669,13 @@ const ChatInterface = ({
           ];
 
           // Call the API with the selected provider
-          apiResponse = await callDeepseekAPI(
+          const reply = await callDeepseekAPI(
             messageHistory as DeepseekMessage[],
             apiKey,
             selectedApi,
           );
+          apiResponse = reply.content;
+          answeredByModel = reply.model;
         } catch (apiError) {
           console.error("API error:", apiError);
           // Provide more specific error message based on the error
@@ -697,6 +704,7 @@ const ChatInterface = ({
         sender: "bot" as "user" | "bot",
         timestamp: new Date(),
         persona: getPersonaDisplayName(currentPersona) as "GreenBot" | "EcoLife Guide" | "Waste Wizard" | "Nature Navigator" | "Power Sage" | "Climate Guardian",
+        model: answeredByModel,
       };
 
       // Replace loading message with the actual response

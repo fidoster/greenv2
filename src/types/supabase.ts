@@ -93,6 +93,7 @@ export type Database = {
           user_email: string | null
           pid: string | null
           scenario: number | null
+          model: string | null
         }
         Insert: {
           content: string
@@ -104,6 +105,7 @@ export type Database = {
           user_email?: string | null
           pid?: string | null
           scenario?: number | null
+          model?: string | null
         }
         Update: {
           content?: string
@@ -115,6 +117,7 @@ export type Database = {
           user_email?: string | null
           pid?: string | null
           scenario?: number | null
+          model?: string | null
         }
         Relationships: [
           {

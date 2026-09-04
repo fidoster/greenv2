@@ -57,55 +57,76 @@ serve(async (req) => {
       console.error("Error fetching API keys:", apiKeysError);
     }
 
-    // Get the appropriate API key based on provider
-    let apiKey: string | null = null;
-    let apiUrl: string;
-    let model: string;
-    // Deployment-wide fallback, set with:
-    //   supabase secrets set OPENAI_API_KEY=...
-    // Keeps the key out of the database entirely and lets users who own no
-    // api_keys row -- study participants above all -- still get responses.
-    let fallbackEnvVar: string;
-
-    switch (provider) {
-      case "openai":
-        apiKey = apiKeysData?.openai_key ?? null;
-        apiUrl = "https://api.openai.com/v1/chat/completions";
-        // GPT-5.6 Luna: the low-tier model whose price dropped 80% in July
-        // 2026 ($0.20/M in, $1.20/M out vs gpt-4o's $2.50/$10).
-        model = "gpt-5.6-luna";
-        fallbackEnvVar = "OPENAI_API_KEY";
-        break;
-      case "deepseek":
-        apiKey = apiKeysData?.deepseek_key ?? null;
-        apiUrl = "https://api.deepseek.com/v1/chat/completions";
-        model = "deepseek-chat";
-        fallbackEnvVar = "DEEPSEEK_API_KEY";
-        break;
-      case "grok":
-        apiKey = apiKeysData?.grok_key ?? null;
-        apiUrl = "https://api.x.ai/v1/chat/completions";
-        model = "grok-beta";
-        fallbackEnvVar = "GROK_API_KEY";
-        break;
-      default:
-        return new Response(
-          JSON.stringify({ error: `Unknown provider: ${provider}` }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+    // ---- Provider configuration ----------------------------------------
+    // Deployment-wide keys are set with:
+    //   supabase secrets set OPENAI_API_KEY=... GROK_API_KEY=...
+    // They keep keys out of the database and let users who own no api_keys
+    // row -- study participants above all -- still get responses.
+    interface ProviderConfig {
+      name: string;
+      apiKey: string | null;
+      apiUrl: string;
+      model: string;
     }
 
-    if (!apiKey) {
-      apiKey = Deno.env.get(fallbackEnvVar) ?? null;
-      if (apiKey) {
-        console.log(`Using deployment ${provider} key for user ${user.id}`);
+    const resolveProvider = (name: string): ProviderConfig | null => {
+      let apiKey: string | null;
+      let apiUrl: string;
+      let model: string;
+      let envVar: string;
+
+      switch (name) {
+        case "openai":
+          apiKey = apiKeysData?.openai_key ?? null;
+          apiUrl = "https://api.openai.com/v1/chat/completions";
+          // GPT-5.6 Luna: low-tier model, price cut 80% in July 2026
+          // ($0.20/M in, $1.20/M out vs gpt-4o's $2.50/$10).
+          model = "gpt-5.6-luna";
+          envVar = "OPENAI_API_KEY";
+          break;
+        case "deepseek":
+          apiKey = apiKeysData?.deepseek_key ?? null;
+          apiUrl = "https://api.deepseek.com/v1/chat/completions";
+          model = "deepseek-chat";
+          envVar = "DEEPSEEK_API_KEY";
+          break;
+        case "grok":
+          apiKey = apiKeysData?.grok_key ?? null;
+          apiUrl = "https://api.x.ai/v1/chat/completions";
+          // grok-4.1-fast: xAI's cheapest, $0.20/M in and $0.50/M out --
+          // same input price as Luna and cheaper output.
+          model = "grok-4.1-fast";
+          envVar = "GROK_API_KEY";
+          break;
+        default:
+          return null;
       }
+
+      if (!apiKey) apiKey = Deno.env.get(envVar) ?? null;
+      return { name, apiKey, apiUrl, model };
+    };
+
+    const primary = resolveProvider(provider);
+    if (!primary) {
+      return new Response(
+        JSON.stringify({ error: `Unknown provider: ${provider}` }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
-    if (!apiKey) {
+    // Grok backs up OpenAI when OpenAI is rate limited or down. Participants
+    // arrive in cohorts and all hit the API at once, so a single provider is
+    // a single point of failure for the whole session.
+    const chain: ProviderConfig[] = [primary];
+    if (provider === "openai") {
+      const backup = resolveProvider("grok");
+      if (backup?.apiKey) chain.push(backup);
+    }
+
+    if (!chain.some((c) => c.apiKey)) {
       return new Response(
         JSON.stringify({
           error: `No ${provider.toUpperCase()} API key found. Please add it in settings.`,
@@ -118,52 +139,87 @@ serve(async (req) => {
       );
     }
 
-    // The GPT-5 family rejects both max_tokens and any temperature other than
-    // the default, with a 400. DeepSeek and Grok still expect the old pair, so
-    // the body is built per-model rather than shared.
-    const isGpt5Family = model.startsWith("gpt-5");
+    // Only capacity and outage failures are worth retrying elsewhere. A 400
+    // or 401 means our request or our key is wrong, and silently answering
+    // from another model would hide that -- which for a study would quietly
+    // mix two models into one dataset.
+    const isRetryable = (status: number) =>
+      status === 408 || status === 409 || status === 429 || status >= 500;
 
-    const requestBody: Record<string, unknown> = {
-      model: model,
-      messages: messages,
+    const buildBody = (model: string) => {
+      // The GPT-5 family rejects max_tokens outright and accepts no
+      // temperature other than the default. DeepSeek and Grok still expect
+      // the old pair, so the body is built per-model.
+      const body: Record<string, unknown> = { model, messages };
+      if (model.startsWith("gpt-5")) {
+        // Headroom above the previous 1000: reasoning tokens come out of the
+        // same budget, and exhausting it returns an empty message, not an error.
+        body.max_completion_tokens = 2000;
+      } else {
+        body.temperature = 0.7;
+        body.max_tokens = 1000;
+      }
+      return body;
     };
 
-    if (isGpt5Family) {
-      // Headroom above the previous 1000: on these models any reasoning
-      // tokens are drawn from the same budget, and exhausting it returns an
-      // empty message rather than an error.
-      requestBody.max_completion_tokens = 2000;
-    } else {
-      requestBody.temperature = 0.7;
-      requestBody.max_tokens = 1000;
-    }
+    let lastError = "No provider was reachable.";
+    let lastStatus = 502;
 
-    // Call the AI API
-    const aiResponse = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(requestBody),
-    });
+    for (let i = 0; i < chain.length; i++) {
+      const cfg = chain[i];
+      const isLast = i === chain.length - 1;
 
-    if (!aiResponse.ok) {
-      const errorData = await aiResponse.text();
-      return new Response(
-        JSON.stringify({
-          error: `${provider.toUpperCase()} API error: ${aiResponse.status} ${errorData}`,
-        }),
-        {
-          status: aiResponse.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (!cfg.apiKey) {
+        lastError = `No ${cfg.name.toUpperCase()} API key configured.`;
+        lastStatus = 400;
+        continue;
+      }
+
+      try {
+        const aiResponse = await fetch(cfg.apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${cfg.apiKey}`,
+          },
+          body: JSON.stringify(buildBody(cfg.model)),
+        });
+
+        if (aiResponse.ok) {
+          const data = await aiResponse.json();
+          if (i > 0) {
+            console.log(
+              `Primary ${chain[0].name} failed; answered with ${cfg.name} (${cfg.model})`
+            );
+          }
+          // data.model tells the client which model actually replied, so a
+          // failover is recorded rather than silently blended into the data.
+          return new Response(
+            JSON.stringify({ ...data, model: data.model ?? cfg.model }),
+            {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
         }
-      );
+
+        const errorText = await aiResponse.text();
+        lastError = `${cfg.name.toUpperCase()} API error: ${aiResponse.status} ${errorText}`;
+        lastStatus = aiResponse.status;
+        console.error(lastError);
+
+        if (!isRetryable(aiResponse.status) || isLast) break;
+        console.log(`${cfg.name} returned ${aiResponse.status}; trying backup`);
+      } catch (fetchError) {
+        lastError = `${cfg.name.toUpperCase()} request failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`;
+        lastStatus = 502;
+        console.error(lastError);
+        if (isLast) break;
+        console.log(`${cfg.name} unreachable; trying backup`);
+      }
     }
 
-    const data = await aiResponse.json();
-
-    return new Response(JSON.stringify(data), {
+    return new Response(JSON.stringify({ error: lastError }), {
+      status: lastStatus,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

@@ -16,6 +16,7 @@ export interface StudyMessageRow {
   persona: string | null;
   content: string;
   created_at: string | null;
+  model: string | null;
 }
 
 export interface StudySessionSummary {
@@ -27,6 +28,8 @@ export interface StudySessionSummary {
   advisors: string[];
   messageCount: number;
   participantMessages: number;
+  /** Distinct models that answered, e.g. after a failover to Grok. */
+  models: string[];
   startedAt: string | null;
   lastActivityAt: string | null;
 }
@@ -59,7 +62,7 @@ export async function getStudySessions(): Promise<{
 
   const { data: messages, error: msgError } = await supabase
     .from("messages")
-    .select("id, conversation_id, pid, scenario, sender, persona, content, created_at")
+    .select("id, conversation_id, pid, scenario, sender, persona, content, created_at, model")
     .not("pid", "is", null)
     .order("created_at", { ascending: true });
 
@@ -88,6 +91,7 @@ export async function getStudySessions(): Promise<{
       advisors: [],
       messageCount: 0,
       participantMessages: 0,
+      models: [],
       startedAt: p.created_at ?? null,
       lastActivityAt: p.last_seen_at ?? null,
     });
@@ -116,6 +120,7 @@ export async function getStudySessions(): Promise<{
       advisors: [],
       messageCount: 0,
       participantMessages: 0,
+      models: [],
       startedAt: conv.created_at ?? null,
       lastActivityAt: conv.updated_at ?? null,
     });
@@ -135,6 +140,7 @@ export async function getStudySessions(): Promise<{
         advisors: [],
         messageCount: 0,
         participantMessages: 0,
+        models: [],
         startedAt: msg.created_at ?? null,
         lastActivityAt: msg.created_at ?? null,
       };
@@ -147,6 +153,10 @@ export async function getStudySessions(): Promise<{
     // Only bot messages carry a persona, and it is the advisor that replied.
     if (msg.persona && !session.advisors.includes(msg.persona)) {
       session.advisors.push(msg.persona);
+    }
+
+    if (msg.model && !session.models.includes(msg.model)) {
+      session.models.push(msg.model);
     }
 
     if (
@@ -225,6 +235,7 @@ export function messagesToCsv(messages: StudyMessageRow[]): string {
     "timestamp",
     "sender",
     "advisor",
+    "model",
     "content",
   ];
 
@@ -236,6 +247,7 @@ export function messagesToCsv(messages: StudyMessageRow[]): string {
       m.created_at,
       m.sender,
       m.persona ?? "",
+      m.model ?? "",
       m.content,
     ]
       .map(csvCell)
@@ -251,6 +263,7 @@ export function sessionsToCsv(sessions: StudySessionSummary[]): string {
     "pid",
     "scenario",
     "advisors_used",
+    "models_used",
     "messages_total",
     "messages_from_participant",
     "started_at",
@@ -262,6 +275,7 @@ export function sessionsToCsv(sessions: StudySessionSummary[]): string {
       s.pid,
       s.scenario,
       s.advisors.join(" | "),
+      s.models.join(" | "),
       s.messageCount,
       s.participantMessages,
       s.startedAt,

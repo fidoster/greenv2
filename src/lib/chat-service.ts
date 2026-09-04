@@ -82,6 +82,9 @@ export async function saveMessage(conversationId: string, message: Message) {
       user_email: study ? null : userEmail || null,
       pid: study?.pid ?? null,
       scenario: study?.scenario ?? null,
+      // Which model produced this reply. Null on user messages and on
+      // locally generated error text.
+      model: (message as { model?: string | null }).model ?? null,
     };
 
     // Only add the persona field if it exists in the message
