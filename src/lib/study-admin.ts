@@ -20,6 +20,8 @@ export interface StudyMessageRow {
 }
 
 export interface StudySessionSummary {
+  /** Unique per participant AND scenario: participants complete both. */
+  key: string;
   pid: string;
   scenario: number | null;
   conversationId: string | null;
@@ -44,9 +46,14 @@ export const ADVISOR_NAMES = [
   "Climate Guardian",
 ] as const;
 
+/** One row per participant per scenario, since participants complete both. */
+export function sessionKey(pid: string, scenario: number | null): string {
+  return `${pid}::${scenario ?? "none"}`;
+}
+
 /**
- * Load every study conversation with its messages, grouped per participant.
- * Study rows only: conversations with no pid belong to regular users.
+ * Load every study conversation with its messages, grouped by participant AND
+ * scenario. Study rows only: conversations with no pid belong to regular users.
  */
 export async function getStudySessions(): Promise<{
   sessions: StudySessionSummary[];
@@ -77,13 +84,15 @@ export async function getStudySessions(): Promise<{
 
   const allMessages = (messages ?? []) as StudyMessageRow[];
 
-  // Group by pid rather than conversation: a participant who starts a new
-  // chat should still appear as one study session.
+  // Keyed by pid AND scenario. Grouping by pid alone would merge a
+  // participant's two scenarios into one row and blend their transcripts,
+  // which is precisely the comparison the study depends on keeping apart.
   const byPid = new Map<string, StudySessionSummary>();
 
   for (const p of participants ?? []) {
     if (!p.pid) continue;
-    byPid.set(p.pid, {
+    byPid.set(sessionKey(p.pid, p.scenario ?? null), {
+      key: sessionKey(p.pid, p.scenario ?? null),
       pid: p.pid,
       scenario: p.scenario ?? null,
       conversationId: null,
@@ -101,7 +110,8 @@ export async function getStudySessions(): Promise<{
   // most recent. Fill in the registry-seeded rows rather than skipping them.
   for (const conv of conversations ?? []) {
     if (!conv.pid) continue;
-    const existing = byPid.get(conv.pid);
+    const key = sessionKey(conv.pid, conv.scenario ?? null);
+    const existing = byPid.get(key);
 
     if (existing) {
       if (existing.conversationId) continue; // already has a newer conversation
@@ -112,7 +122,8 @@ export async function getStudySessions(): Promise<{
       continue;
     }
 
-    byPid.set(conv.pid, {
+    byPid.set(key, {
+      key,
       pid: conv.pid,
       scenario: conv.scenario ?? null,
       conversationId: conv.id,
@@ -129,10 +140,12 @@ export async function getStudySessions(): Promise<{
   for (const msg of allMessages) {
     if (!msg.pid) continue;
 
-    let session = byPid.get(msg.pid);
+    const msgKey = sessionKey(msg.pid, msg.scenario ?? null);
+    let session = byPid.get(msgKey);
     if (!session) {
       // Message without a matching conversation row; still worth showing.
       session = {
+        key: msgKey,
         pid: msg.pid,
         scenario: msg.scenario ?? null,
         conversationId: msg.conversation_id,
@@ -144,7 +157,7 @@ export async function getStudySessions(): Promise<{
         startedAt: msg.created_at ?? null,
         lastActivityAt: msg.created_at ?? null,
       };
-      byPid.set(msg.pid, session);
+      byPid.set(msgKey, session);
     }
 
     session.messageCount += 1;
@@ -173,9 +186,22 @@ export async function getStudySessions(): Promise<{
     }
   }
 
-  const sessions = Array.from(byPid.values()).sort((a, b) =>
-    (b.lastActivityAt ?? "").localeCompare(a.lastActivityAt ?? ""),
-  );
+  // Sort by participant (most recently active first), then scenario, so a
+  // participant's two rows sit together and read 1 then 2.
+  const latestByPid = new Map<string, string>();
+  for (const s of byPid.values()) {
+    const cur = latestByPid.get(s.pid) ?? "";
+    if ((s.lastActivityAt ?? "") > cur) latestByPid.set(s.pid, s.lastActivityAt ?? "");
+  }
+
+  const sessions = Array.from(byPid.values()).sort((a, b) => {
+    if (a.pid !== b.pid) {
+      return (latestByPid.get(b.pid) ?? "").localeCompare(
+        latestByPid.get(a.pid) ?? "",
+      );
+    }
+    return (a.scenario ?? 0) - (b.scenario ?? 0);
+  });
 
   return { sessions, messages: allMessages };
 }

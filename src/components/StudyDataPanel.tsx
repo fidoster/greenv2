@@ -29,6 +29,7 @@ import {
   deleteAllStudyData,
   downloadFile,
   getStudySessions,
+  sessionKey,
   messagesToCsv,
   sessionsToCsv,
   timestampedName,
@@ -112,7 +113,7 @@ const StudyDataPanel = () => {
   const [search, setSearch] = useState("");
   const [scenarioFilter, setScenarioFilter] = useState<string>("all");
   const [advisorFilter, setAdvisorFilter] = useState<string>("all");
-  const [expandedPid, setExpandedPid] = useState<string | null>(null);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -152,20 +153,24 @@ const StudyDataPanel = () => {
     });
   }, [sessions, search, scenarioFilter, advisorFilter]);
 
-  const messagesByPid = useMemo(() => {
+  // Keyed per participant AND scenario so an expanded row shows only that
+  // scenario's transcript, not both concatenated.
+  const messagesByKey = useMemo(() => {
     const map = new Map<string, StudyMessageRow[]>();
     for (const m of messages) {
       if (!m.pid) continue;
-      const list = map.get(m.pid);
+      const k = sessionKey(m.pid, m.scenario ?? null);
+      const list = map.get(k);
       if (list) list.push(m);
-      else map.set(m.pid, [m]);
+      else map.set(k, [m]);
     }
     return map;
   }, [messages]);
 
   const stats = useMemo(
     () => ({
-      participants: sessions.length,
+      participants: new Set(sessions.map((s) => s.pid)).size,
+      sessions: sessions.length,
       scenario1: sessions.filter((s) => s.scenario === 1).length,
       scenario2: sessions.filter((s) => s.scenario === 2).length,
       messages: messages.length,
@@ -180,7 +185,7 @@ const StudyDataPanel = () => {
       await deleteAllStudyData();
       setIsDeleteOpen(false);
       setDeleteConfirm("");
-      setExpandedPid(null);
+      setExpandedKey(null);
       await load();
     } catch (err) {
       console.error("Error deleting study data:", err);
@@ -229,8 +234,8 @@ const StudyDataPanel = () => {
         />
         <StatTile
           icon={<MessageSquare className="h-5 w-5" />}
-          label="Messages logged"
-          value={stats.messages}
+          label={`Sessions · ${stats.messages} messages`}
+          value={stats.sessions}
         />
         <StatTile
           icon={<span className="text-sm font-bold">S1</span>}
@@ -374,13 +379,13 @@ const StudyDataPanel = () => {
                 </thead>
                 <tbody>
                   {filtered.map((s) => {
-                    const isOpen = expandedPid === s.pid;
-                    const transcript = messagesByPid.get(s.pid) ?? [];
+                    const isOpen = expandedKey === s.key;
+                    const transcript = messagesByKey.get(s.key) ?? [];
 
                     return (
-                      <Fragment key={s.pid}>
+                      <Fragment key={s.key}>
                         <tr
-                          onClick={() => setExpandedPid(isOpen ? null : s.pid)}
+                          onClick={() => setExpandedKey(isOpen ? null : s.key)}
                           className="border-b border-gray-100 dark:border-[#333B39] hover:bg-gray-50 dark:hover:bg-[#2C4A3E]/30 cursor-pointer"
                         >
                           <td className="py-2.5 pr-3 text-gray-400">
@@ -547,8 +552,10 @@ const StudyDataPanel = () => {
           ) : (
             <div className="rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4 space-y-3">
               <p className="text-sm text-red-800 dark:text-red-300">
-                This deletes <strong>{stats.participants}</strong> study{" "}
-                {stats.participants === 1 ? "session" : "sessions"} and{" "}
+                This deletes <strong>{stats.sessions}</strong> study{" "}
+                {stats.sessions === 1 ? "session" : "sessions"} across{" "}
+                <strong>{stats.participants}</strong>{" "}
+                {stats.participants === 1 ? "participant" : "participants"}, and{" "}
                 <strong>{stats.messages}</strong> messages. It cannot be undone.
               </p>
               <div className="space-y-1.5">

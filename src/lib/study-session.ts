@@ -203,8 +203,17 @@ export async function startStudySessionFromUrl(): Promise<StudySession | null> {
   if (data.session && (!existing || existing.pid !== pid)) {
     clearStudySession();
     await supabase.auth.signOut();
-  } else if (existing?.pid === pid && data.session) {
-    // Already signed in as this participant; nothing to do.
+  } else if (
+    existing?.pid === pid &&
+    data.session &&
+    (scenario === null || scenario === existing.scenario)
+  ) {
+    // Already signed in as this participant, in this scenario. A refresh or
+    // back navigation lands here and needs no round trip.
+    //
+    // A DIFFERENT scenario for the same pid is the second half of the study,
+    // so it must fall through: short-circuiting here would keep the old
+    // scenario and file the new discussion under it.
     return existing;
   }
 

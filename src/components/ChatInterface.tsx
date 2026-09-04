@@ -100,8 +100,20 @@ const ChatInterface = ({
 
             console.log(`Loaded ${conversations?.length || 0} conversations from Supabase`);
 
-            if (conversations && conversations.length > 0) {
-              const formattedHistory = conversations.map((conv) => ({
+            // Participants complete both scenarios under one pid, so
+            // "most recent" is the wrong conversation half the time: arriving
+            // for scenario 2 would resume the scenario 1 transcript and file
+            // the new discussion under the old scenario. Match the scenario
+            // instead, and fall through to a fresh chat when this participant
+            // has not started this one yet.
+            const scenarioConversations = studySession
+              ? conversations.filter(
+                  (conv: any) => conv.scenario === studySession.scenario,
+                )
+              : conversations;
+
+            if (scenarioConversations && scenarioConversations.length > 0) {
+              const formattedHistory = scenarioConversations.map((conv) => ({
                 id: conv.id,
                 title: conv.title,
                 date: new Date(conv.updated_at).toLocaleDateString(),

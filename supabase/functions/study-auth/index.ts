@@ -172,9 +172,22 @@ serve(async (req) => {
         }
       }
 
+      // Participants complete BOTH scenarios, arriving from Qualtrics once
+      // per scenario with the same pid. A scenario in the request therefore
+      // switches them to it; without one (a manual ID login) they resume
+      // whichever they were in last.
+      const requestedScenario = Number(scenarioRaw);
+      const activeScenario =
+        requestedScenario === 1 || requestedScenario === 2
+          ? requestedScenario
+          : existing.scenario;
+
       await admin
         .from("study_participants")
-        .update({ last_seen_at: new Date().toISOString() })
+        .update({
+          last_seen_at: new Date().toISOString(),
+          scenario: activeScenario,
+        })
         .eq("pid", pid);
 
       await recordAttempt(true);
@@ -183,9 +196,7 @@ serve(async (req) => {
         access_token: signIn.session.access_token,
         refresh_token: signIn.session.refresh_token,
         pid,
-        // The scenario recorded at first entry wins, so a participant
-        // returning without URL parameters keeps their original assignment.
-        scenario: existing.scenario,
+        scenario: activeScenario,
         returning: true,
       });
     }
