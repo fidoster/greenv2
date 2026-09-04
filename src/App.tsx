@@ -8,27 +8,54 @@ import { supabase } from "./lib/supabase";
 // Lazy load the AdminPanel component
 const AdminPanel = lazy(() => import("./components/AdminPanel"));
 
-// Protected route component
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+// Admin-only route.
+//
+// This previously checked only that a session existed, which was enough when
+// every session belonged to a registered user. Study participants and guests
+// also hold sessions, so the admin role is now verified explicitly.
+const AdminOnlyRoute = ({ children }: { children: React.ReactNode }) => {
+  const [isAllowed, setIsAllowed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data } = await supabase.auth.getSession();
-      setIsAuthenticated(!!data.session);
-      setIsLoading(false);
+    let cancelled = false;
+
+    const checkAccess = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const userId = data.session?.user?.id;
+
+        if (!userId) {
+          if (!cancelled) setIsAllowed(false);
+          return;
+        }
+
+        const { data: userData, error } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (!cancelled) {
+          setIsAllowed(!error && userData?.role === "admin");
+        }
+      } catch (error) {
+        console.error("Error checking admin access:", error);
+        if (!cancelled) setIsAllowed(false);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     };
 
-    checkAuth();
+    checkAccess();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setIsAuthenticated(!!session);
-      },
-    );
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      setIsLoading(true);
+      checkAccess();
+    });
 
     return () => {
+      cancelled = true;
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -41,7 +68,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  return isAuthenticated ? children : <Navigate to="/" replace />;
+  return isAllowed ? children : <Navigate to="/" replace />;
 };
 
 function App() {
@@ -90,9 +117,9 @@ function App() {
           <Route
             path="/admin"
             element={
-              <ProtectedRoute>
+              <AdminOnlyRoute>
                 <AdminPanel />
-              </ProtectedRoute>
+              </AdminOnlyRoute>
             }
           />
           {import.meta.env.VITE_TEMPO === "true" && (
