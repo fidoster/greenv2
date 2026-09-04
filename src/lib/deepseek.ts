@@ -86,7 +86,7 @@ export async function callDeepseekAPI(
   switch (provider) {
     case "openai":
       apiUrl = OPENAI_API_URL;
-      model = "gpt-4o";
+      model = "gpt-5.6-luna";
       break;
     case "grok":
       apiUrl = GROK_API_URL;

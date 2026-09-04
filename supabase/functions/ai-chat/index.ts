@@ -71,7 +71,9 @@ serve(async (req) => {
       case "openai":
         apiKey = apiKeysData?.openai_key ?? null;
         apiUrl = "https://api.openai.com/v1/chat/completions";
-        model = "gpt-4o";
+        // GPT-5.6 Luna: the low-tier model whose price dropped 80% in July
+        // 2026 ($0.20/M in, $1.20/M out vs gpt-4o's $2.50/$10).
+        model = "gpt-5.6-luna";
         fallbackEnvVar = "OPENAI_API_KEY";
         break;
       case "deepseek":
@@ -116,6 +118,26 @@ serve(async (req) => {
       );
     }
 
+    // The GPT-5 family rejects both max_tokens and any temperature other than
+    // the default, with a 400. DeepSeek and Grok still expect the old pair, so
+    // the body is built per-model rather than shared.
+    const isGpt5Family = model.startsWith("gpt-5");
+
+    const requestBody: Record<string, unknown> = {
+      model: model,
+      messages: messages,
+    };
+
+    if (isGpt5Family) {
+      // Headroom above the previous 1000: on these models any reasoning
+      // tokens are drawn from the same budget, and exhausting it returns an
+      // empty message rather than an error.
+      requestBody.max_completion_tokens = 2000;
+    } else {
+      requestBody.temperature = 0.7;
+      requestBody.max_tokens = 1000;
+    }
+
     // Call the AI API
     const aiResponse = await fetch(apiUrl, {
       method: "POST",
@@ -123,12 +145,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: model,
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 1000,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!aiResponse.ok) {
