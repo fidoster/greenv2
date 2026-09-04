@@ -13,8 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { Key, Loader2, AlertTriangle, Home, ArrowLeft, Leaf } from "lucide-react";
+import { Key, Loader2, AlertTriangle, Home, ArrowLeft, Leaf, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import StudyDataPanel from "./StudyDataPanel";
 
 interface ApiKey {
   id: string;
@@ -267,7 +269,7 @@ const AdminPanel = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f0f7f2] to-[#e8f5e9] dark:from-[#1f2a28] dark:to-[#2a3b35]">
-      <div className="container mx-auto p-6 max-w-4xl">
+      <div className="container mx-auto p-6 max-w-6xl">
         {/* Header with Home Button */}
         <header className="mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -287,11 +289,11 @@ const AdminPanel = () => {
 
           <div className="bg-white dark:bg-[#2a3b35] rounded-lg shadow-lg p-6">
             <h1 className="text-3xl font-bold text-[#2C4A3E] dark:text-white flex items-center">
-              <Key className="w-8 h-8 mr-3 text-[#4B9460]" />
-              API Key Management
+              <Leaf className="w-8 h-8 mr-3 text-[#4B9460]" />
+              Admin
             </h1>
             <p className="mt-2 text-gray-600 dark:text-gray-300">
-              Manage your AI service API keys for {currentUser?.email || 'your account'}
+              Study data and API keys for {currentUser?.email || 'your account'}
             </p>
           </div>
 
@@ -311,6 +313,23 @@ const AdminPanel = () => {
           )}
         </header>
 
+      <Tabs defaultValue="study" className="w-full">
+        <TabsList className="mb-6">
+          <TabsTrigger value="study" className="gap-1.5">
+            <BarChart3 className="w-4 h-4" />
+            Study data
+          </TabsTrigger>
+          <TabsTrigger value="keys" className="gap-1.5">
+            <Key className="w-4 h-4" />
+            API keys
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="study">
+          <StudyDataPanel />
+        </TabsContent>
+
+        <TabsContent value="keys">
       <Card className="mb-8 shadow-lg border-t-4 border-t-[#4B9460]">
         <CardHeader className="bg-gradient-to-r from-[#f8fdf9] to-white dark:from-[#2a3b35] dark:to-[#2a3b35]">
           <CardTitle className="flex items-center gap-2">
@@ -436,6 +455,8 @@ const AdminPanel = () => {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
       </div>
     </div>
   );
