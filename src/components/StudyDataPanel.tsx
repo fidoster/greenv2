@@ -6,6 +6,7 @@ import {
   Download,
   Loader2,
   MessageSquare,
+  Layers,
   RefreshCw,
   Search,
   Trash2,
@@ -226,16 +227,21 @@ const StudyDataPanel = () => {
       )}
 
       {/* Overview */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <StatTile
           icon={<Users className="h-5 w-5" />}
-          label="Participants"
+          label="Participants · unique IDs"
           value={stats.participants}
         />
         <StatTile
-          icon={<MessageSquare className="h-5 w-5" />}
-          label={`Sessions · ${stats.messages} messages`}
+          icon={<Layers className="h-5 w-5" />}
+          label="Sessions · one per scenario"
           value={stats.sessions}
+        />
+        <StatTile
+          icon={<MessageSquare className="h-5 w-5" />}
+          label="Messages logged"
+          value={stats.messages}
         />
         <StatTile
           icon={<span className="text-sm font-bold">S1</span>}
@@ -378,9 +384,18 @@ const StudyDataPanel = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((s) => {
+                  {filtered.map((s, i) => {
                     const isOpen = expandedKey === s.key;
                     const transcript = messagesByKey.get(s.key) ?? [];
+                    // Rows are sorted with a participant's scenarios adjacent,
+                    // so a repeat of the previous pid is the same person's
+                    // second session. Showing the ID once makes "2
+                    // participants, 3 sessions" read correctly at a glance.
+                    const continuesParticipant =
+                      i > 0 && filtered[i - 1].pid === s.pid;
+                    const sessionsForPid = filtered.filter(
+                      (o) => o.pid === s.pid,
+                    ).length;
 
                     return (
                       <Fragment key={s.key}>
@@ -395,10 +410,30 @@ const StudyDataPanel = () => {
                               <ChevronRight className="h-4 w-4" />
                             )}
                           </td>
-                          <td className="py-2.5 pr-3">
-                            <span className="font-mono font-semibold tracking-wider text-[#2C4A3E] dark:text-[#98C9A3]">
-                              {s.pid}
-                            </span>
+                          <td
+                            className={`py-2.5 pr-3 ${
+                              continuesParticipant
+                                ? "border-l-2 border-[#4B9460]/40 dark:border-[#98C9A3]/30 pl-2"
+                                : ""
+                            }`}
+                          >
+                            {continuesParticipant ? (
+                              <span
+                                className="font-mono tracking-wider text-gray-400 dark:text-gray-600"
+                                title={`Same participant as the row above (${s.pid})`}
+                              >
+                                ↳ {s.pid}
+                              </span>
+                            ) : (
+                              <span className="font-mono font-semibold tracking-wider text-[#2C4A3E] dark:text-[#98C9A3]">
+                                {s.pid}
+                                {sessionsForPid > 1 && (
+                                  <span className="ml-1.5 font-sans text-[10px] font-normal text-gray-500 dark:text-gray-400">
+                                    ×{sessionsForPid}
+                                  </span>
+                                )}
+                              </span>
+                            )}
                           </td>
                           <td className="py-2.5 pr-3">
                             {s.scenario ? (
