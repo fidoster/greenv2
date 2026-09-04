@@ -126,6 +126,30 @@ export type Database = {
           },
         ]
       }
+      users: {
+        Row: {
+          id: string
+          email: string | null
+          role: string
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id: string
+          email?: string | null
+          role?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          email?: string | null
+          role?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       quiz_results: {
         Row: {
           id: string
