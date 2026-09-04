@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 import { Message } from "../hooks/useChatState";
 import { PersonaType } from "../components/PersonaSelector";
 import { getPersonaDisplayName } from "../utils/personaUtils";
+import { getActiveStudySession } from "./study-session";
 
 // Create a new conversation
 export async function createConversation(title: string, persona: PersonaType) {
@@ -18,13 +19,19 @@ export async function createConversation(title: string, persona: PersonaType) {
       `Creating conversation with title: ${title}, persona: ${persona}, userId: ${userId}, userEmail: ${userEmail}`,
     );
 
+    // Study sessions are tagged with pid + scenario and never carry an email:
+    // the pid is the only identifier we are allowed to store.
+    const study = getActiveStudySession();
+
     const { data, error } = await supabase
       .from("conversations")
       .insert({
         title,
         persona: getPersonaDisplayName(persona),
         user_id: userId,
-        user_email: userEmail || null,
+        user_email: study ? null : userEmail || null,
+        pid: study?.pid ?? null,
+        scenario: study?.scenario ?? null,
       })
       .select()
       .single();
@@ -55,7 +62,15 @@ export async function saveMessage(conversationId: string, message: Message) {
     const { data: userData } = await supabase.auth.getUser();
     const userEmail = userData?.user?.email;
 
-    console.log(`Saving message to conversation ${conversationId} from user ${userEmail}:`, message);
+    // Every message written during a study session carries the pid and
+    // scenario, so the chat log joins to the Qualtrics export directly.
+    // Tagging here rather than at the call sites means no write can miss it.
+    const study = getActiveStudySession();
+
+    console.log(
+      `Saving message to conversation ${conversationId}${study ? ` (study pid ${study.pid})` : ` from user ${userEmail}`}:`,
+      message,
+    );
 
     // Create a message object with required fields
     const messageData = {
@@ -64,7 +79,9 @@ export async function saveMessage(conversationId: string, message: Message) {
       sender: message.sender,
       conversation_id: conversationId,
       created_at: message.timestamp.toISOString(),
-      user_email: userEmail || null,
+      user_email: study ? null : userEmail || null,
+      pid: study?.pid ?? null,
+      scenario: study?.scenario ?? null,
     };
 
     // Only add the persona field if it exists in the message
