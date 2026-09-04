@@ -6,7 +6,9 @@ import { PlusCircle, Settings, MessageSquare, Trash2, Leaf, Shield, LogOut } fro
 import UserAvatar from "./UserAvatar";
 import { cn } from "../lib/utils";
 import PersonaSelector, { PersonaType } from "./PersonaSelector";
+import ParticipantBadge from "./ParticipantBadge";
 import { supabase } from "../lib/supabase";
+import { StudySession } from "../lib/study-session";
 
 // Define consistent localStorage keys
 const LOCAL_STORAGE_KEYS = {
@@ -29,6 +31,7 @@ interface SidebarProps {
   className?: string;
   initialPersona?: PersonaType;
   onSelectPersona?: (persona: PersonaType) => void;
+  studySession?: StudySession | null;
 }
 
 const Sidebar = ({
@@ -39,6 +42,7 @@ const Sidebar = ({
   className,
   initialPersona = "greenbot",
   onSelectPersona = () => {},
+  studySession = null,
 }: SidebarProps) => {
   const [history, setHistory] = useState<ChatHistoryItem[]>([]);
   const [selectedPersona, setSelectedPersona] =
@@ -63,8 +67,14 @@ const Sidebar = ({
     return chats.filter((chat) => !deletedChats.includes(chat.id));
   };
 
-  // Fetch user email on component mount
+  // Fetch user email on component mount. Skipped during a study session:
+  // the participant's address is synthetic and the pid is shown instead.
   useEffect(() => {
+    if (studySession) {
+      setUserEmail(null);
+      return;
+    }
+
     const fetchUserEmail = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.email) {
@@ -73,7 +83,7 @@ const Sidebar = ({
     };
 
     fetchUserEmail();
-  }, []);
+  }, [studySession]);
 
   // Clean up deleted chats on component mount and when chatHistory changes
   useEffect(() => {
@@ -237,25 +247,33 @@ const Sidebar = ({
         Settings
       </Button>
 
-      <Button
-        variant="ghost"
-        className="justify-start text-gray-600 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-[#2C4A3E] text-sm sm:text-base h-9 sm:h-10"
-        onClick={() => (window.location.pathname = "/admin")}
-      >
-        <Shield className="mr-2 h-4 w-4" />
-        Admin Panel
-      </Button>
+      {/* Admin Panel is irrelevant to study participants and they have no
+          access to it, so do not advertise it during a study session. */}
+      {!studySession && (
+        <Button
+          variant="ghost"
+          className="justify-start text-gray-600 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-[#2C4A3E] text-sm sm:text-base h-9 sm:h-10"
+          onClick={() => (window.location.pathname = "/admin")}
+        >
+          <Shield className="mr-2 h-4 w-4" />
+          Admin Panel
+        </Button>
+      )}
 
-      {/* User Email Display */}
-      {userEmail && (
-        <div className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-md bg-gray-100 dark:bg-[#2C4A3E]/50 border border-gray-200 dark:border-gray-700">
-          <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">
-            Signed in as
+      {/* Participant ID, or the signed-in email for regular users */}
+      {studySession ? (
+        <ParticipantBadge studySession={studySession} variant="block" />
+      ) : (
+        userEmail && (
+          <div className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-md bg-gray-100 dark:bg-[#2C4A3E]/50 border border-gray-200 dark:border-gray-700">
+            <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">
+              Signed in as
+            </div>
+            <div className="text-xs sm:text-sm font-medium text-gray-800 dark:text-white truncate" title={userEmail}>
+              {userEmail}
+            </div>
           </div>
-          <div className="text-xs sm:text-sm font-medium text-gray-800 dark:text-white truncate" title={userEmail}>
-            {userEmail}
-          </div>
-        </div>
+        )
       )}
 
       <Button

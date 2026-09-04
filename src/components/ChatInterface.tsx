@@ -8,6 +8,9 @@ import { PersonaType } from "./PersonaSelector";
 import { useTheme } from "./ThemeProvider";
 import { supabase } from "../lib/supabase";
 import { v4 as uuidv4 } from "uuid";
+import ParticipantBadge from "./ParticipantBadge";
+import StudyIdNotice from "./StudyIdNotice";
+import { StudySession, hasSeenSaveIdNotice } from "../lib/study-session";
 
 // If you don't have uuid installed, you can use this simple implementation
 // const uuidv4 = () => Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -34,9 +37,13 @@ interface ChatHistoryItem {
 
 interface ChatInterfaceProps {
   initialPersona?: PersonaType;
+  studySession?: StudySession | null;
 }
 
-const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
+const ChatInterface = ({
+  initialPersona = "greenbot",
+  studySession = null,
+}: ChatInterfaceProps) => {
   const { theme } = useTheme();
   const [currentPersona, setCurrentPersona] =
     useState<PersonaType>(initialPersona);
@@ -64,6 +71,9 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
   const [currentConversationId, setCurrentConversationId] =
     useState<string>("default");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [showStudyNotice, setShowStudyNotice] = useState(
+    () => !!studySession && !hasSeenSaveIdNotice(studySession.pid),
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load conversations from local storage or database when component mounts
@@ -991,6 +1001,7 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
           }}
           initialPersona={currentPersona}
           onSelectPersona={handlePersonaChange}
+          studySession={studySession}
         />
       </div>
 
@@ -1024,10 +1035,18 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
             </h2>
           </div>
 
+          {/* Participant ID - visible at every breakpoint, unlike the title */}
+          {studySession && (
+            <ParticipantBadge
+              studySession={studySession}
+              className="ml-auto mr-2"
+            />
+          )}
+
           <QuizButton
             onStartQuiz={handleStartQuiz}
             currentPersona={currentPersona}
-            className="ml-auto"
+            className={studySession ? "" : "ml-auto"}
           />
         </div>
 
@@ -1056,6 +1075,14 @@ const ChatInterface = ({ initialPersona = "greenbot" }: ChatInterfaceProps) => {
           currentPersona={currentPersona}
           onClose={() => setIsQuizOpen(false)}
           onComplete={handleQuizComplete}
+        />
+      )}
+
+      {/* First visit only: the participant ID is their only way back in */}
+      {studySession && showStudyNotice && (
+        <StudyIdNotice
+          studySession={studySession}
+          onDismiss={() => setShowStudyNotice(false)}
         />
       )}
     </div>
