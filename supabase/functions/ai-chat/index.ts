@@ -93,9 +93,14 @@ serve(async (req) => {
         case "grok":
           apiKey = apiKeysData?.grok_key ?? null;
           apiUrl = "https://api.x.ai/v1/chat/completions";
-          // grok-4.1-fast: xAI's cheapest, $0.20/M in and $0.50/M out --
-          // same input price as Luna and cheaper output.
-          model = "grok-4.1-fast";
+          // xAI's cheapest tier, $0.20/M in and $0.50/M out -- same input
+          // price as Luna and cheaper output.
+          //
+          // Native xAI ids use hyphens: "grok-4.1-fast" is an aggregator
+          // slug (OpenRouter) and the API rejects it with "Model not found".
+          // The non-reasoning variant is the right backup for chat: lower
+          // latency, and no reasoning tokens drawn from the output budget.
+          model = "grok-4-1-fast-non-reasoning";
           envVar = "GROK_API_KEY";
           break;
         default:
