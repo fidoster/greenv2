@@ -46,6 +46,40 @@ export const ADVISOR_NAMES = [
   "Climate Guardian",
 ] as const;
 
+// Supabase caps REST responses at a server-side maximum (1,000 rows by
+// default). A study of 245 students produces several thousand messages, so an
+// unpaginated read would silently return the first page and stop -- an export
+// quietly missing most of the data, with no error to notice.
+//
+// Pages until a request comes back empty, advancing by the number of rows
+// ACTUALLY returned rather than by the page size. If the server's cap is lower
+// than the page size, advancing by page size would skip everything in between.
+const PAGE_SIZE = 1000;
+const MAX_PAGES = 500; // ~500k rows; a guard against an unterminated loop
+
+async function fetchAllRows<T>(
+  buildQuery: () => {
+    range: (
+      from: number,
+      to: number,
+    ) => PromiseLike<{ data: T[] | null; error: unknown }>;
+  },
+): Promise<T[]> {
+  const rows: T[] = [];
+  let from = 0;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    rows.push(...data);
+    from += data.length;
+  }
+
+  return rows;
+}
+
 /** One row per participant per scenario, since participants complete both. */
 export function sessionKey(pid: string, scenario: number | null): string {
   return `${pid}::${scenario ?? "none"}`;
@@ -59,30 +93,39 @@ export async function getStudySessions(): Promise<{
   sessions: StudySessionSummary[];
   messages: StudyMessageRow[];
 }> {
-  const { data: conversations, error: convError } = await supabase
-    .from("conversations")
-    .select("id, pid, scenario, title, persona, created_at, updated_at")
-    .not("pid", "is", null)
-    .order("updated_at", { ascending: false });
+  // The secondary sort on id matters: range paging over a non-unique order can
+  // skip or repeat rows when timestamps tie.
+  const conversations = await fetchAllRows<any>(() =>
+    supabase
+      .from("conversations")
+      .select("id, pid, scenario, title, persona, created_at, updated_at")
+      .not("pid", "is", null)
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: true }),
+  );
 
-  if (convError) throw convError;
-
-  const { data: messages, error: msgError } = await supabase
-    .from("messages")
-    .select("id, conversation_id, pid, scenario, sender, persona, content, created_at, model")
-    .not("pid", "is", null)
-    .order("created_at", { ascending: true });
-
-  if (msgError) throw msgError;
+  const messages = await fetchAllRows<StudyMessageRow>(() =>
+    supabase
+      .from("messages")
+      .select(
+        "id, conversation_id, pid, scenario, sender, persona, content, created_at, model",
+      )
+      .not("pid", "is", null)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
+  );
 
   // Participants who signed in but never sent a message have no conversation
   // row at all. They matter -- that is the dropout signal -- so seed the list
   // from the registry first. The view omits auth_secret by construction.
-  const { data: participants } = await supabase
-    .from("study_participants_admin")
-    .select("pid, scenario, created_at, last_seen_at");
+  const participants = await fetchAllRows<any>(() =>
+    supabase
+      .from("study_participants_admin")
+      .select("pid, scenario, created_at, last_seen_at")
+      .order("pid", { ascending: true }),
+  );
 
-  const allMessages = (messages ?? []) as StudyMessageRow[];
+  const allMessages = messages;
 
   // Keyed by pid AND scenario. Grouping by pid alone would merge a
   // participant's two scenarios into one row and blend their transcripts,
@@ -213,9 +256,10 @@ export async function getStudySessions(): Promise<{
  * regular user's conversation cannot be removed here even by accident.
  */
 export async function deleteAllStudyData(): Promise<{ deleted: number }> {
-  const { data: toDelete, error: countError } = await supabase
+  // head + exact count, so the number is not itself capped by the row limit.
+  const { count: toDelete, error: countError } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id", { count: "exact", head: true })
     .not("pid", "is", null);
 
   if (countError) throw countError;
@@ -237,7 +281,7 @@ export async function deleteAllStudyData(): Promise<{ deleted: number }> {
 
   if (convError) throw convError;
 
-  return { deleted: toDelete?.length ?? 0 };
+  return { deleted: toDelete ?? 0 };
 }
 
 // ---------------------------------------------------------------
