@@ -51,50 +51,40 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
+    // A missing row is not an error: study participants and guests never
+    // configure their own keys and fall back to the deployment key below.
     if (apiKeysError) {
       console.error("Error fetching API keys:", apiKeysError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch API keys from database." }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    if (!apiKeysData) {
-      return new Response(
-        JSON.stringify({
-          error: "No API keys configured. Please add your API keys at /admin",
-          needsSetup: true
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
     }
 
     // Get the appropriate API key based on provider
     let apiKey: string | null = null;
     let apiUrl: string;
     let model: string;
+    // Deployment-wide fallback, set with:
+    //   supabase secrets set OPENAI_API_KEY=...
+    // Keeps the key out of the database entirely and lets users who own no
+    // api_keys row -- study participants above all -- still get responses.
+    let fallbackEnvVar: string;
 
     switch (provider) {
       case "openai":
-        apiKey = apiKeysData.openai_key;
+        apiKey = apiKeysData?.openai_key ?? null;
         apiUrl = "https://api.openai.com/v1/chat/completions";
         model = "gpt-4o";
+        fallbackEnvVar = "OPENAI_API_KEY";
         break;
       case "deepseek":
-        apiKey = apiKeysData.deepseek_key;
+        apiKey = apiKeysData?.deepseek_key ?? null;
         apiUrl = "https://api.deepseek.com/v1/chat/completions";
         model = "deepseek-chat";
+        fallbackEnvVar = "DEEPSEEK_API_KEY";
         break;
       case "grok":
-        apiKey = apiKeysData.grok_key;
+        apiKey = apiKeysData?.grok_key ?? null;
         apiUrl = "https://api.x.ai/v1/chat/completions";
         model = "grok-beta";
+        fallbackEnvVar = "GROK_API_KEY";
         break;
       default:
         return new Response(
@@ -107,8 +97,18 @@ serve(async (req) => {
     }
 
     if (!apiKey) {
+      apiKey = Deno.env.get(fallbackEnvVar) ?? null;
+      if (apiKey) {
+        console.log(`Using deployment ${provider} key for user ${user.id}`);
+      }
+    }
+
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: `No ${provider.toUpperCase()} API key found. Please add it in settings.` }),
+        JSON.stringify({
+          error: `No ${provider.toUpperCase()} API key found. Please add it in settings.`,
+          needsSetup: true,
+        }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
