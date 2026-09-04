@@ -61,3 +61,6 @@ core
 APP_ANALYSIS_AND_IMPROVEMENTS.md
 SECURITY_FIX_SUMMARY.md
 EMAIL_TRACKING_UPDATE.md
+
+# Supabase CLI link artifacts (pooler-url can contain connection credentials)
+supabase/.temp/

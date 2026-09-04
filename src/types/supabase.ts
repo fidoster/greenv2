@@ -322,7 +322,15 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      study_participants_admin: {
+        Row: {
+          pid: string | null
+          scenario: number | null
+          user_id: string | null
+          created_at: string | null
+          last_seen_at: string | null
+        }
+      }
     }
     Functions: {
       [_ in never]: never

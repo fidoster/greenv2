@@ -65,16 +65,48 @@ export async function getStudySessions(): Promise<{
 
   if (msgError) throw msgError;
 
+  // Participants who signed in but never sent a message have no conversation
+  // row at all. They matter -- that is the dropout signal -- so seed the list
+  // from the registry first. The view omits auth_secret by construction.
+  const { data: participants } = await supabase
+    .from("study_participants_admin")
+    .select("pid, scenario, created_at, last_seen_at");
+
   const allMessages = (messages ?? []) as StudyMessageRow[];
 
   // Group by pid rather than conversation: a participant who starts a new
   // chat should still appear as one study session.
   const byPid = new Map<string, StudySessionSummary>();
 
+  for (const p of participants ?? []) {
+    if (!p.pid) continue;
+    byPid.set(p.pid, {
+      pid: p.pid,
+      scenario: p.scenario ?? null,
+      conversationId: null,
+      title: "—",
+      advisors: [],
+      messageCount: 0,
+      participantMessages: 0,
+      startedAt: p.created_at ?? null,
+      lastActivityAt: p.last_seen_at ?? null,
+    });
+  }
+
+  // Conversations arrive newest-first, so the first one seen per pid is the
+  // most recent. Fill in the registry-seeded rows rather than skipping them.
   for (const conv of conversations ?? []) {
     if (!conv.pid) continue;
     const existing = byPid.get(conv.pid);
-    if (existing) continue;
+
+    if (existing) {
+      if (existing.conversationId) continue; // already has a newer conversation
+      existing.conversationId = conv.id;
+      existing.title = conv.title || "Untitled";
+      existing.scenario = existing.scenario ?? conv.scenario ?? null;
+      if (conv.created_at) existing.startedAt = conv.created_at;
+      continue;
+    }
 
     byPid.set(conv.pid, {
       pid: conv.pid,
