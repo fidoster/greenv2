@@ -21,12 +21,28 @@ const corsHeaders = {
 };
 
 const RATE_LIMIT_WINDOW_MINUTES = 15;
+
 // Only requests for a pid that does NOT already exist are throttled -- that is
 // what a brute-force walk generates. A participant whose pid exists is never
 // rate limited, so a shared campus IP cannot lock a cohort out of their own
-// sessions. The cap is sized to let a large cohort start at once (all of whom
-// are "unknown" on first entry) while still slowing a walk of the ID space.
-const RATE_LIMIT_MAX_UNKNOWN_PID = 120;
+// sessions.
+//
+// The two unknown-pid paths are capped separately because they carry very
+// different traffic:
+//
+//   created  A first entry from a Qualtrics link, which always carries a
+//            scenario. A whole cohort does this at once, from one campus IP if
+//            the activity is run in a scheduled session, and each student does
+//            it exactly once ever (their second scenario is a "returning"
+//            request). Sized for a ~100 student cohort with generous headroom
+//            for typos, retries and repeat runs.
+//
+//   unknown  Someone typed an ID at the login form that does not exist. Only
+//            students who lost their questionnaire link use that form at all,
+//            so real traffic here is a trickle. This is the path a person
+//            poking at IDs by hand would use, so it stays tight.
+const RATE_LIMIT_MAX_CREATED = 400;
+const RATE_LIMIT_MAX_UNKNOWN = 60;
 
 const PID_PATTERN = /^[0-9]{6}$/;
 // Synthetic, non-routable domain. The local part is the pid, so no personal
@@ -104,7 +120,7 @@ serve(async (req) => {
 
     // Counted only when the pid turns out not to exist. Deliberately NOT
     // checked before the lookup: doing so blocked valid participants too.
-    const unknownPidLimitReached = async () => {
+    const limitReached = async (kind: "created" | "unknown") => {
       const windowStart = new Date(
         Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
       ).toISOString();
@@ -113,10 +129,12 @@ serve(async (req) => {
         .from("study_auth_attempts")
         .select("id", { count: "exact", head: true })
         .eq("ip_hash", ipHash)
-        .in("attempt_kind", ["created", "unknown"])
+        .eq("attempt_kind", kind)
         .gte("attempted_at", windowStart);
 
-      return (count ?? 0) >= RATE_LIMIT_MAX_UNKNOWN_PID;
+      const cap =
+        kind === "created" ? RATE_LIMIT_MAX_CREATED : RATE_LIMIT_MAX_UNKNOWN;
+      return (count ?? 0) >= cap;
     };
 
     // ---- Look up the participant ----
@@ -209,8 +227,12 @@ serve(async (req) => {
 
     // ---- The pid does not exist ----
     // Everything below is a request for an unknown pid, which is what a
-    // brute-force walk looks like. This is the only path that is throttled.
-    if (await unknownPidLimitReached()) {
+    // brute-force walk looks like. This is the only path that is throttled,
+    // and the cap depends on which of the two paths it is.
+    const scenario = Number(scenarioRaw);
+    const isFirstEntry = scenario === 1 || scenario === 2;
+
+    if (await limitReached(isFirstEntry ? "created" : "unknown")) {
       return json(
         { error: "Too many attempts. Please wait a few minutes and try again." },
         429,
@@ -218,8 +240,7 @@ serve(async (req) => {
     }
 
     // ---- First visit: requires a scenario from the Qualtrics link ----
-    const scenario = Number(scenarioRaw);
-    if (scenario !== 1 && scenario !== 2) {
+    if (!isFirstEntry) {
       // Reached when someone types an unknown ID at the login form. We do not
       // create participants here, so guessing IDs cannot mint new accounts.
       await recordAttempt("unknown", false);
