@@ -20,9 +20,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// A 6-digit pid is only ~1e6 values, so throttle guessing hard.
 const RATE_LIMIT_WINDOW_MINUTES = 15;
-const RATE_LIMIT_MAX_FAILURES = 10;
+// Only requests for a pid that does NOT already exist are throttled -- that is
+// what a brute-force walk generates. A participant whose pid exists is never
+// rate limited, so a shared campus IP cannot lock a cohort out of their own
+// sessions. The cap is sized to let a large cohort start at once (all of whom
+// are "unknown" on first entry) while still slowing a walk of the ID space.
+const RATE_LIMIT_MAX_UNKNOWN_PID = 120;
 
 const PID_PATTERN = /^[0-9]{6}$/;
 // Synthetic, non-routable domain. The local part is the pid, so no personal
@@ -82,7 +86,6 @@ serve(async (req) => {
       return json({ error: "Participant ID must be exactly 6 digits." }, 400);
     }
 
-    // ---- Rate limit before doing any lookup ----
     const forwardedFor = req.headers.get("x-forwarded-for") ?? "";
     const clientIp = forwardedFor.split(",")[0].trim() || "unknown";
     const ipHash = await hashIp(
@@ -90,28 +93,30 @@ serve(async (req) => {
       Deno.env.get("STUDY_IP_SALT") ?? serviceRoleKey,
     );
 
-    const windowStart = new Date(
-      Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
-    ).toISOString();
-
-    const { count: recentFailures } = await admin
-      .from("study_auth_attempts")
-      .select("id", { count: "exact", head: true })
-      .eq("ip_hash", ipHash)
-      .eq("succeeded", false)
-      .gte("attempted_at", windowStart);
-
-    if ((recentFailures ?? 0) >= RATE_LIMIT_MAX_FAILURES) {
-      return json(
-        { error: "Too many attempts. Please wait a few minutes and try again." },
-        429,
-      );
-    }
-
-    const recordAttempt = async (succeeded: boolean) => {
+    const recordAttempt = async (
+      kind: "returning" | "created" | "unknown",
+      succeeded: boolean,
+    ) => {
       await admin
         .from("study_auth_attempts")
-        .insert({ ip_hash: ipHash, succeeded });
+        .insert({ ip_hash: ipHash, succeeded, attempt_kind: kind });
+    };
+
+    // Counted only when the pid turns out not to exist. Deliberately NOT
+    // checked before the lookup: doing so blocked valid participants too.
+    const unknownPidLimitReached = async () => {
+      const windowStart = new Date(
+        Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
+      ).toISOString();
+
+      const { count } = await admin
+        .from("study_auth_attempts")
+        .select("id", { count: "exact", head: true })
+        .eq("ip_hash", ipHash)
+        .in("attempt_kind", ["created", "unknown"])
+        .gte("attempted_at", windowStart);
+
+      return (count ?? 0) >= RATE_LIMIT_MAX_UNKNOWN_PID;
     };
 
     // ---- Look up the participant ----
@@ -150,7 +155,7 @@ serve(async (req) => {
 
         if (resetError) {
           console.error("Password reset failed:", resetError.message);
-          await recordAttempt(false);
+          await recordAttempt("returning", false);
           return json({ error: "Could not start your study session." }, 500);
         }
 
@@ -167,7 +172,7 @@ serve(async (req) => {
 
         if (signInError || !signIn?.session) {
           console.error("Sign-in failed after reset:", signInError?.message);
-          await recordAttempt(false);
+          await recordAttempt("returning", false);
           return json({ error: "Could not start your study session." }, 500);
         }
       }
@@ -190,7 +195,8 @@ serve(async (req) => {
         })
         .eq("pid", pid);
 
-      await recordAttempt(true);
+      // A known participant is never rate limited.
+      await recordAttempt("returning", true);
 
       return json({
         access_token: signIn.session.access_token,
@@ -201,12 +207,22 @@ serve(async (req) => {
       });
     }
 
+    // ---- The pid does not exist ----
+    // Everything below is a request for an unknown pid, which is what a
+    // brute-force walk looks like. This is the only path that is throttled.
+    if (await unknownPidLimitReached()) {
+      return json(
+        { error: "Too many attempts. Please wait a few minutes and try again." },
+        429,
+      );
+    }
+
     // ---- First visit: requires a scenario from the Qualtrics link ----
     const scenario = Number(scenarioRaw);
     if (scenario !== 1 && scenario !== 2) {
       // Reached when someone types an unknown ID at the login form. We do not
       // create participants here, so guessing IDs cannot mint new accounts.
-      await recordAttempt(false);
+      await recordAttempt("unknown", false);
       return json(
         {
           error:
@@ -228,7 +244,7 @@ serve(async (req) => {
 
     if (createError || !created?.user) {
       console.error("createUser failed:", createError?.message);
-      await recordAttempt(false);
+      await recordAttempt("created", false);
       return json({ error: "Could not start your study session." }, 500);
     }
 
@@ -245,7 +261,7 @@ serve(async (req) => {
       // Roll back the orphaned auth user so a retry can succeed cleanly.
       await admin.auth.admin.deleteUser(created.user.id);
       console.error("study_participants insert failed:", insertError.message);
-      await recordAttempt(false);
+      await recordAttempt("created", false);
       return json({ error: "Could not start your study session." }, 500);
     }
 
@@ -257,11 +273,11 @@ serve(async (req) => {
 
     if (signInError || !signIn?.session) {
       console.error("Sign-in failed for new participant:", signInError?.message);
-      await recordAttempt(false);
+      await recordAttempt("created", false);
       return json({ error: "Could not start your study session." }, 500);
     }
 
-    await recordAttempt(true);
+    await recordAttempt("created", true);
 
     // Best-effort housekeeping so the attempt log does not grow without bound.
     await admin
