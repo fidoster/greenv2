@@ -260,7 +260,7 @@ const Sidebar = ({
         </Button>
       )}
 
-      {/* Participant ID, or the signed-in email for regular users */}
+      {/* Session code, or the signed-in email for regular users */}
       {studySession ? (
         <ParticipantBadge studySession={studySession} variant="block" />
       ) : (

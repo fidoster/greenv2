@@ -1062,7 +1062,7 @@ const ChatInterface = ({
             </h2>
           </div>
 
-          {/* Participant ID - visible at every breakpoint, unlike the title */}
+          {/* Session code - visible at every breakpoint, unlike the title */}
           {studySession && (
             <ParticipantBadge
               studySession={studySession}
@@ -1105,7 +1105,7 @@ const ChatInterface = ({
         />
       )}
 
-      {/* First visit only: the participant ID is their only way back in */}
+      {/* First visit only: the session code is their only way back in */}
       {studySession && showStudyNotice && (
         <StudyIdNotice
           studySession={studySession}

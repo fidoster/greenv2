@@ -41,14 +41,14 @@ const AuthForm = ({ onAuthSuccess, initialError = null }: AuthFormProps) => {
   };
 
   // Study participants returning without their Qualtrics link sign in with
-  // the participant ID they were given.
+  // the session code they were given.
   const handleParticipantLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setStudyError(null);
 
     const pid = participantId.trim();
     if (!PID_PATTERN.test(pid)) {
-      setStudyError("Participant ID must be exactly 6 digits.");
+      setStudyError("Session code must be exactly 6 digits.");
       return;
     }
 
@@ -57,7 +57,7 @@ const AuthForm = ({ onAuthSuccess, initialError = null }: AuthFormProps) => {
       await signInWithParticipantId(pid);
       onAuthSuccess?.();
     } catch (error) {
-      console.error("Participant ID login error:", error);
+      console.error("Session code login error:", error);
       setStudyError(
         error instanceof Error
           ? error.message
@@ -231,7 +231,7 @@ const AuthForm = ({ onAuthSuccess, initialError = null }: AuthFormProps) => {
             htmlFor="participant-id"
             className="block text-sm font-medium text-gray-700 dark:text-gray-300"
           >
-            Study participant
+            Session code
           </label>
           <div className="flex gap-2">
             <Input
@@ -239,7 +239,7 @@ const AuthForm = ({ onAuthSuccess, initialError = null }: AuthFormProps) => {
               inputMode="numeric"
               autoComplete="off"
               maxLength={6}
-              placeholder="6-digit ID"
+              placeholder="6-digit code"
               value={participantId}
               onChange={(e) => {
                 setParticipantId(e.target.value.replace(/[^0-9]/g, ""));
@@ -271,7 +271,7 @@ const AuthForm = ({ onAuthSuccess, initialError = null }: AuthFormProps) => {
           )}
 
           <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug">
-            Enter the participant ID from your questionnaire to return to your
+            Enter the session code from your questionnaire to return to your
             conversation.
           </p>
         </form>

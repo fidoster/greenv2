@@ -11,7 +11,7 @@ interface ParticipantBadgeProps {
 }
 
 /**
- * Shows the participant ID. Always visible at every breakpoint: it is both
+ * Shows the session code. Always visible at every breakpoint: it is both
  * how a student confirms they are in the right session and the only way back
  * into their conversation later, so it must never be hidden behind a menu.
  */
@@ -43,12 +43,12 @@ const ParticipantBadge = ({
         )}
       >
         <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">
-          Participant ID
+          Session code
         </div>
         <button
           type="button"
           onClick={handleCopy}
-          title="Copy participant ID"
+          title="Copy session code"
           className="flex items-center gap-2 text-sm sm:text-base font-mono font-semibold tracking-widest text-[#2C4A3E] dark:text-[#98C9A3] hover:opacity-80 transition-opacity"
         >
           {studySession.pid}
@@ -65,14 +65,14 @@ const ParticipantBadge = ({
     <button
       type="button"
       onClick={handleCopy}
-      title={`Participant ID ${studySession.pid} — scenario ${studySession.scenario}. Click to copy.`}
+      title={`Session code ${studySession.pid} — scenario ${studySession.scenario}. Click to copy.`}
       className={cn(
         "flex items-center gap-1.5 px-2 py-1 rounded-md border border-[#4B9460]/30 dark:border-[#8BA888]/30 bg-[#4B9460]/10 dark:bg-[#8BA888]/10 hover:bg-[#4B9460]/20 dark:hover:bg-[#8BA888]/20 transition-colors shrink-0",
         className,
       )}
     >
       <span className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 hidden sm:inline">
-        ID
+        Code
       </span>
       <span className="text-xs sm:text-sm font-mono font-semibold tracking-widest text-[#2C4A3E] dark:text-[#98C9A3]">
         {studySession.pid}

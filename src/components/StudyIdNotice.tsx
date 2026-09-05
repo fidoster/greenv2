@@ -11,7 +11,7 @@ interface StudyIdNoticeProps {
 /**
  * Shown once per participant, on their first visit.
  *
- * The participant ID is the only credential that reaches their conversation.
+ * The session code is the only credential that reaches their conversation.
  * If a student closes the tab and loses the questionnaire link without having
  * noted the ID down, that conversation is unreachable for them, so it is
  * worth one interruption to say so.
@@ -25,7 +25,7 @@ const StudyIdNotice = ({ studySession, onDismiss }: StudyIdNoticeProps) => {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard can be blocked; the ID is displayed to read regardless.
+      // Clipboard can be blocked; the code is displayed to read regardless.
     }
   };
 
@@ -53,13 +53,13 @@ const StudyIdNotice = ({ studySession, onDismiss }: StudyIdNoticeProps) => {
             id="study-notice-title"
             className="text-lg font-semibold text-[#2C4A3E] dark:text-white"
           >
-            This is your participant ID
+            This is your session code
           </h2>
 
           <button
             type="button"
             onClick={handleCopy}
-            title="Copy participant ID"
+            title="Copy session code"
             className="mt-4 flex items-center gap-3 px-5 py-3 rounded-md bg-[#4B9460]/10 dark:bg-[#8BA888]/10 border border-[#4B9460]/30 dark:border-[#8BA888]/30 hover:bg-[#4B9460]/20 dark:hover:bg-[#8BA888]/20 transition-colors"
           >
             <span className="text-2xl font-mono font-bold tracking-[0.3em] text-[#2C4A3E] dark:text-[#98C9A3]">
@@ -70,7 +70,7 @@ const StudyIdNotice = ({ studySession, onDismiss }: StudyIdNoticeProps) => {
 
           <p className="mt-4 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
             Save it somewhere. If you close this tab and lose the link from the
-            questionnaire, this ID is how you get back to this conversation.
+            questionnaire, this code is how you get back to this conversation.
           </p>
 
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
