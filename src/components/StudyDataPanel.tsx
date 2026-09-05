@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
+  FileText,
   Loader2,
   MessageSquare,
   Layers,
@@ -35,6 +36,7 @@ import {
   sessionKey,
   messagesToCsv,
   sessionsToCsv,
+  sessionsToTranscript,
   timestampedName,
 } from "../lib/study-admin";
 
@@ -256,13 +258,22 @@ const StudyDataPanel = () => {
 
   // Exports follow the current filters, so a filtered view exports what is
   // on screen rather than silently dumping everything.
-  const visiblePids = useMemo(
-    () => new Set(filtered.map((s) => s.pid)),
+  //
+  // Matched on pid AND scenario, not pid alone. Rows are per participant per
+  // scenario, so matching on pid meant filtering to "Scenario 1" still
+  // exported that participant's scenario 2 messages -- a file that looks
+  // filtered but is not, which is the kind of thing you only discover after
+  // analysing it.
+  const visibleKeys = useMemo(
+    () => new Set(filtered.map((s) => s.key)),
     [filtered],
   );
   const visibleMessages = useMemo(
-    () => messages.filter((m) => m.pid && visiblePids.has(m.pid)),
-    [messages, visiblePids],
+    () =>
+      messages.filter(
+        (m) => m.pid && visibleKeys.has(sessionKey(m.pid, m.scenario ?? null)),
+      ),
+    [messages, visibleKeys],
   );
 
   if (isLoading) {
@@ -374,6 +385,23 @@ const StudyDataPanel = () => {
               >
                 <Download className="h-3.5 w-3.5" />
                 Sessions CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={visibleMessages.length === 0}
+                onClick={() =>
+                  downloadFile(
+                    timestampedName("greenbot-transcripts", "md"),
+                    sessionsToTranscript(filtered, visibleMessages),
+                    "text/markdown",
+                  )
+                }
+                className="gap-1.5"
+                title="Readable transcripts for qualitative reading and coding"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Transcripts
               </Button>
               <Button
                 variant="outline"

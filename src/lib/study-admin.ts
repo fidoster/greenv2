@@ -364,6 +364,12 @@ function csvCell(value: unknown): string {
   return str;
 }
 
+/** Words, for the engagement measures a chat study usually wants. */
+function wordCount(text: string): number {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
 /**
  * One row per message: the shape you join against the Qualtrics export.
  *
@@ -371,33 +377,116 @@ function csvCell(value: unknown): string {
  * Their discussions are coursework and belong in the log; consent is the
  * column that decides what may be analysed. Filter on consent = 1 rather
  * than assuming the file is already restricted to it.
+ *
+ * turn_index matters more than it looks. created_at is written from the
+ * BROWSER's clock, not the server's, so it is only as trustworthy as the
+ * student's device: two messages a second apart can tie, or invert, and
+ * across 245 devices the absolute times are not comparable. turn_index is
+ * the order the conversation actually happened in, per participant per
+ * scenario. Sequence it on; use created_at for wall-clock timing only, and
+ * treat cross-participant timing as approximate.
  */
 export function messagesToCsv(messages: StudyMessageRow[]): string {
   const header = [
     "pid",
     "scenario",
     "consent",
+    "turn_index",
+    "message_id",
     "conversation_id",
     "timestamp",
     "sender",
     "advisor",
     "model",
+    "content_chars",
+    "content_words",
     "content",
   ];
 
-  const rows = messages.map((m) =>
-    [
+  // Input arrives ordered by created_at then id, so a running counter per
+  // session reproduces the order the transcript is read in.
+  const turnByKey = new Map<string, number>();
+
+  const rows = messages.map((m) => {
+    const key = sessionKey(m.pid ?? "", m.scenario ?? null);
+    const turn = (turnByKey.get(key) ?? 0) + 1;
+    turnByKey.set(key, turn);
+
+    return [
       m.pid,
       m.scenario,
       // Numeric rather than yes/no: this is the column you filter and cross
       // tabulate on, and 0/1 imports cleanly into SPSS, R and Excel alike.
       m.consent ?? 0,
+      turn,
+      m.id,
       m.conversation_id,
       m.created_at,
       m.sender,
       m.persona ?? "",
       m.model ?? "",
+      m.content.length,
+      wordCount(m.content),
       m.content,
+    ]
+      .map(csvCell)
+      .join(",");
+  });
+
+  return [header.join(","), ...rows].join("\r\n");
+}
+
+/** Minutes between first and last activity, blank when it cannot be known. */
+function durationMinutes(from: string | null, to: string | null): string {
+  if (!from || !to) return "";
+  const start = new Date(from).getTime();
+  const end = new Date(to).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return "";
+  return ((end - start) / 60000).toFixed(1);
+}
+
+/**
+ * One row per participant per scenario, for quick counts.
+ *
+ * A row with messages_total = 0 is a real finding, not padding: it is a
+ * student who opened GreenBot and never sent anything, which is the dropout
+ * signal. Those rows come from the participant registry, so they survive
+ * even though there is no conversation to join to.
+ */
+export function sessionsToCsv(sessions: StudySessionSummary[]): string {
+  const header = [
+    "pid",
+    "scenario",
+    "consent",
+    "conversation_id",
+    "title",
+    "advisors_used",
+    "advisor_count",
+    "models_used",
+    "messages_total",
+    "messages_from_participant",
+    "messages_from_advisor",
+    "started_at",
+    "last_activity_at",
+    "duration_minutes",
+  ];
+
+  const rows = sessions.map((s) =>
+    [
+      s.pid,
+      s.scenario,
+      s.consent ?? 0,
+      s.conversationId ?? "",
+      s.title,
+      s.advisors.join(" | "),
+      s.advisors.length,
+      s.models.join(" | "),
+      s.messageCount,
+      s.participantMessages,
+      s.messageCount - s.participantMessages,
+      s.startedAt,
+      s.lastActivityAt,
+      durationMinutes(s.startedAt, s.lastActivityAt),
     ]
       .map(csvCell)
       .join(","),
@@ -406,37 +495,94 @@ export function messagesToCsv(messages: StudyMessageRow[]): string {
   return [header.join(","), ...rows].join("\r\n");
 }
 
-/** One row per participant, for quick counts. */
-export function sessionsToCsv(sessions: StudySessionSummary[]): string {
-  const header = [
-    "pid",
-    "scenario",
-    "consent",
-    "advisors_used",
-    "models_used",
-    "messages_total",
-    "messages_from_participant",
-    "started_at",
-    "last_activity_at",
+const SCENARIO_LABELS: Record<number, string> = {
+  1: "Company AI marketing",
+  2: "City advertising",
+};
+
+/**
+ * The transcripts as readable Markdown, one section per participant per
+ * scenario.
+ *
+ * The CSV is what you compute on; this is what you actually read. Qualitative
+ * coding from a spreadsheet cell means scrolling a 2,000-character reply
+ * inside a 20-pixel row, and the turn order is only as clear as your sort.
+ * Here a conversation reads top to bottom the way it happened.
+ */
+export function sessionsToTranscript(
+  sessions: StudySessionSummary[],
+  messages: StudyMessageRow[],
+): string {
+  const byKey = new Map<string, StudyMessageRow[]>();
+  for (const m of messages) {
+    if (!m.pid) continue;
+    const key = sessionKey(m.pid, m.scenario ?? null);
+    const list = byKey.get(key);
+    if (list) list.push(m);
+    else byKey.set(key, [m]);
+  }
+
+  const participants = new Set(sessions.map((s) => s.pid)).size;
+  const out: string[] = [
+    "# GreenBot study transcripts",
+    "",
+    `Exported ${new Date().toISOString()}`,
+    "",
+    `${sessions.length} ${sessions.length === 1 ? "session" : "sessions"} · ` +
+      `${participants} ${participants === 1 ? "participant" : "participants"} · ` +
+      `${messages.length} messages`,
+    "",
+    "`Consent: no` marks coursework that may not be used as research data.",
+    "",
+    "---",
+    "",
   ];
 
-  const rows = sessions.map((s) =>
-    [
-      s.pid,
-      s.scenario,
-      s.consent ?? 0,
-      s.advisors.join(" | "),
-      s.models.join(" | "),
-      s.messageCount,
-      s.participantMessages,
-      s.startedAt,
-      s.lastActivityAt,
-    ]
-      .map(csvCell)
-      .join(","),
-  );
+  for (const s of sessions) {
+    const transcript = byKey.get(s.key) ?? [];
+    const scenarioLabel =
+      s.scenario && SCENARIO_LABELS[s.scenario]
+        ? `Scenario ${s.scenario} — ${SCENARIO_LABELS[s.scenario]}`
+        : "Scenario unknown";
 
-  return [header.join(","), ...rows].join("\r\n");
+    out.push(`## ${s.pid} · ${scenarioLabel}`);
+    out.push("");
+    out.push(`- Consent: ${s.consent === 1 ? "yes" : "no"}`);
+    out.push(`- Advisors: ${s.advisors.length ? s.advisors.join(", ") : "—"}`);
+    out.push(`- Models: ${s.models.length ? s.models.join(", ") : "—"}`);
+    out.push(
+      `- Messages: ${s.messageCount} (${s.participantMessages} from the participant)`,
+    );
+    out.push(`- Started: ${s.startedAt ?? "—"}`);
+    out.push(`- Last activity: ${s.lastActivityAt ?? "—"}`);
+    const mins = durationMinutes(s.startedAt, s.lastActivityAt);
+    if (mins) out.push(`- Duration: ${mins} minutes`);
+    out.push("");
+
+    if (transcript.length === 0) {
+      out.push(
+        "_No messages. This participant opened GreenBot but never sent anything._",
+      );
+      out.push("");
+    } else {
+      transcript.forEach((m, i) => {
+        const who =
+          m.sender === "user" ? "Participant" : m.persona || "Advisor";
+        const model = m.model ? ` · ${m.model}` : "";
+        out.push(`**${i + 1}. ${who}**  _(${m.created_at ?? "no timestamp"}${model})_`);
+        out.push("");
+        // Quoted so a student's own Markdown -- a stray #, or a list --
+        // cannot restructure the document around it.
+        for (const line of m.content.split("\n")) out.push(`> ${line}`);
+        out.push("");
+      });
+    }
+
+    out.push("---");
+    out.push("");
+  }
+
+  return out.join("\n");
 }
 
 export function downloadFile(
