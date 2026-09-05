@@ -495,9 +495,12 @@ export function sessionsToCsv(sessions: StudySessionSummary[]): string {
   return [header.join(","), ...rows].join("\r\n");
 }
 
+// The dilemmas as students meet them in the questionnaire. Spelled out in
+// full here because the transcript header is read months later, when
+// "scenario 1" on its own will not mean anything.
 const SCENARIO_LABELS: Record<number, string> = {
-  1: "Company AI marketing",
-  2: "City advertising",
+  1: "EcoLine campaign at UrbanThread",
+  2: "Media plan at GreenGadget",
 };
 
 /**

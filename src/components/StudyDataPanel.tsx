@@ -325,12 +325,12 @@ const StudyDataPanel = () => {
         />
         <StatTile
           icon={<span className="text-sm font-bold">S1</span>}
-          label="Scenario 1 — company"
+          label="Scenario 1 — EcoLine"
           value={stats.scenario1}
         />
         <StatTile
           icon={<span className="text-sm font-bold">S2</span>}
-          label="Scenario 2 — city"
+          label="Scenario 2 — Media"
           value={stats.scenario2}
         />
         <StatTile
@@ -443,8 +443,8 @@ const StudyDataPanel = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All scenarios</SelectItem>
-                <SelectItem value="1">Scenario 1</SelectItem>
-                <SelectItem value="2">Scenario 2</SelectItem>
+                <SelectItem value="1">Scenario 1 · EcoLine</SelectItem>
+                <SelectItem value="2">Scenario 2 · Media</SelectItem>
               </SelectContent>
             </Select>
             <Select value={advisorFilter} onValueChange={setAdvisorFilter}>
@@ -545,7 +545,7 @@ const StudyDataPanel = () => {
                                 variant="outline"
                                 className="font-normal text-[11px] px-1.5 py-0"
                               >
-                                {s.scenario === 1 ? "1 · Company" : "2 · City"}
+                                {s.scenario === 1 ? "1 · EcoLine" : "2 · Media"}
                               </Badge>
                             ) : (
                               <span className="text-gray-400">—</span>
