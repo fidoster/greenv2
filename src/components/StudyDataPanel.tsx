@@ -29,6 +29,7 @@ import {
   StudyMessageRow,
   StudySessionSummary,
   deleteAllStudyData,
+  deleteParticipant,
   downloadFile,
   getStudySessions,
   sessionKey,
@@ -121,6 +122,14 @@ const StudyDataPanel = () => {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Single-participant erasure. Confirmed by typing the session code itself
+  // rather than a generic phrase, so a mis-click on the wrong row cannot be
+  // confirmed by muscle memory -- you have to read the code you are deleting.
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTargetConfirm, setDeleteTargetConfirm] = useState("");
+  const [isDeletingOne, setIsDeletingOne] = useState(false);
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -202,6 +211,49 @@ const StudyDataPanel = () => {
     }
   };
 
+  // How many rows this session code covers, so the confirmation can say
+  // plainly that both scenarios go, not just the row that was clicked.
+  const targetSessions = useMemo(
+    () => (deleteTarget ? sessions.filter((s) => s.pid === deleteTarget) : []),
+    [sessions, deleteTarget],
+  );
+  const targetMessageCount = useMemo(
+    () =>
+      deleteTarget ? messages.filter((m) => m.pid === deleteTarget).length : 0,
+    [messages, deleteTarget],
+  );
+
+  const closeDeleteTarget = () => {
+    setDeleteTarget(null);
+    setDeleteTargetConfirm("");
+  };
+
+  const handleDeleteParticipant = async () => {
+    if (!deleteTarget) return;
+    setIsDeletingOne(true);
+    setError(null);
+    try {
+      const result = await deleteParticipant(deleteTarget);
+      setDeleteNotice(
+        `Deleted session code ${result.pid}: ${result.messagesDeleted} ${
+          result.messagesDeleted === 1 ? "message" : "messages"
+        }, ${result.conversationsDeleted} ${
+          result.conversationsDeleted === 1 ? "conversation" : "conversations"
+        }${result.authUserDeleted ? " and their login" : ""}.`,
+      );
+      closeDeleteTarget();
+      setExpandedKey(null);
+      await load();
+    } catch (err) {
+      console.error("Error deleting participant:", err);
+      setError(
+        err instanceof Error ? err.message : "Could not delete this participant.",
+      );
+    } finally {
+      setIsDeletingOne(false);
+    }
+  };
+
   // Exports follow the current filters, so a filtered view exports what is
   // on screen rather than silently dumping everything.
   const visiblePids = useMemo(
@@ -227,6 +279,19 @@ const StudyDataPanel = () => {
         <div className="flex items-start gap-2 rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {deleteNotice && (
+        <div className="flex items-start justify-between gap-3 rounded-md border border-[#4B9460]/40 dark:border-[#98C9A3]/30 bg-[#4B9460]/10 dark:bg-[#98C9A3]/10 px-4 py-3 text-sm text-[#2C4A3E] dark:text-[#98C9A3]">
+          <span>{deleteNotice}</span>
+          <button
+            type="button"
+            onClick={() => setDeleteNotice(null)}
+            className="text-xs underline opacity-70 hover:opacity-100 shrink-0"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -390,7 +455,8 @@ const StudyDataPanel = () => {
                     <th className="py-2 pr-3 font-medium">Model</th>
                     <th className="py-2 pr-3 font-medium text-right">Msgs</th>
                     <th className="py-2 pr-3 font-medium">Started</th>
-                    <th className="py-2 font-medium">Last activity</th>
+                    <th className="py-2 pr-3 font-medium">Last activity</th>
+                    <th className="py-2 font-medium w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -522,15 +588,34 @@ const StudyDataPanel = () => {
                           <td className="py-2.5 pr-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
                             {formatDateTime(s.startedAt)}
                           </td>
-                          <td className="py-2.5 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                          <td className="py-2.5 pr-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
                             {formatDateTime(s.lastActivityAt)}
+                          </td>
+                          <td className="py-2.5">
+                            <button
+                              type="button"
+                              // The row itself toggles the transcript, so the
+                              // click must not bubble or deleting would also
+                              // expand what is about to disappear.
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteNotice(null);
+                                setDeleteTargetConfirm("");
+                                setDeleteTarget(s.pid);
+                              }}
+                              title={`Delete session code ${s.pid} and all its data`}
+                              aria-label={`Delete session code ${s.pid}`}
+                              className="p-1.5 rounded-md text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </td>
                         </tr>
 
                         {isOpen && (
                           <tr>
                             <td
-                              colSpan={9}
+                              colSpan={10}
                               className="bg-gray-50 dark:bg-[#232927] px-4 py-4"
                             >
                               <div className="max-h-[420px] overflow-y-auto space-y-3 pr-2">
@@ -673,6 +758,101 @@ const StudyDataPanel = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Single-participant erasure.
+          Separate from the danger zone because this is the routine one: a
+          student who withdraws, or a test code that should not reach the
+          analysis. It removes the participant completely, so there is nothing
+          left to re-identify or accidentally export. */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-participant-title"
+            className="w-full max-w-md rounded-lg bg-white dark:bg-[#2A3130] p-6 shadow-xl border border-red-200 dark:border-red-900/50 space-y-4"
+          >
+            <h3
+              id="delete-participant-title"
+              className="text-base font-semibold flex items-center gap-2 text-red-700 dark:text-red-400"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              Delete session code {deleteTarget}
+            </h3>
+
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Removes{" "}
+              <strong>
+                {targetSessions.length}{" "}
+                {targetSessions.length === 1 ? "session" : "sessions"}
+              </strong>{" "}
+              {targetSessions.length > 1 && (
+                <>
+                  (scenario{" "}
+                  {targetSessions
+                    .map((t) => t.scenario ?? "—")
+                    .join(" and ")}
+                  ){" "}
+                </>
+              )}
+              and <strong>{targetMessageCount}</strong>{" "}
+              {targetMessageCount === 1 ? "message" : "messages"}, along with
+              this participant's login. It cannot be undone.
+            </p>
+
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Use this for a student who withdraws, or to clear a test code.
+              Other participants are not affected.
+            </p>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="delete-participant-confirm"
+                className="block text-xs font-medium text-red-800 dark:text-red-300"
+              >
+                Type <code className="font-mono">{deleteTarget}</code> to
+                confirm
+              </label>
+              <Input
+                id="delete-participant-confirm"
+                value={deleteTargetConfirm}
+                autoComplete="off"
+                inputMode="numeric"
+                maxLength={6}
+                onChange={(e) =>
+                  setDeleteTargetConfirm(e.target.value.replace(/[^0-9]/g, ""))
+                }
+                className="h-9 max-w-[10rem] font-mono tracking-widest bg-white dark:bg-[#232927]"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deleteTargetConfirm !== deleteTarget || isDeletingOne}
+                onClick={handleDeleteParticipant}
+                className="gap-1.5"
+              >
+                {isDeletingOne ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                Delete participant
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isDeletingOne}
+                onClick={closeDeleteTarget}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

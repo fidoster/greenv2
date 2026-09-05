@@ -301,6 +301,57 @@ export async function deleteAllStudyData(): Promise<{ deleted: number }> {
   return { deleted: toDelete ?? 0 };
 }
 
+export interface DeleteParticipantResult {
+  pid: string;
+  messagesDeleted: number;
+  conversationsDeleted: number;
+  authUserDeleted: boolean;
+}
+
+/**
+ * Erase one participant completely: their messages, their conversations,
+ * their registry row and their auth user.
+ *
+ * This cannot be done from the browser. study_participants holds the
+ * auth_secret and is service-role only, and removing an auth user needs the
+ * admin API, so the work happens in the study-admin Edge Function, which
+ * re-checks the caller's admin role server-side.
+ *
+ * Scoped to one session code, and it removes BOTH scenarios: a participant
+ * with half their data deleted is worse than either keeping or removing them
+ * outright, since the within-subjects comparison is the point.
+ */
+export async function deleteParticipant(
+  pid: string,
+): Promise<DeleteParticipantResult> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  // The caller's own token, not the anon key: the function identifies the
+  // admin from it and refuses anyone else.
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Your session has expired. Please sign in again.");
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/study-admin`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: anonKey,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ action: "deleteParticipant", pid }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.error || "Could not delete this participant.");
+  }
+
+  return payload as DeleteParticipantResult;
+}
+
 // ---------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------
