@@ -17,6 +17,8 @@ export interface StudyMessageRow {
   content: string;
   created_at: string | null;
   model: string | null;
+  /** 1 = usable as research data, 0 = coursework only. Never null. */
+  consent: number;
 }
 
 export interface StudySessionSummary {
@@ -32,6 +34,14 @@ export interface StudySessionSummary {
   participantMessages: number;
   /** Distinct models that answered, e.g. after a failover to Grok. */
   models: string[];
+  /**
+   * 1 when the student agreed their data may be used as research data.
+   *
+   * Taken from the participant registry, which holds the answer they gave on
+   * the questionnaire. A session with no registry row falls back to what its
+   * rows are tagged with, and to 0 when nothing says otherwise.
+   */
+  consent: number;
   startedAt: string | null;
   lastActivityAt: string | null;
 }
@@ -98,7 +108,9 @@ export async function getStudySessions(): Promise<{
   const conversations = await fetchAllRows<any>(() =>
     supabase
       .from("conversations")
-      .select("id, pid, scenario, title, persona, created_at, updated_at")
+      .select(
+        "id, pid, scenario, title, persona, created_at, updated_at, consent",
+      )
       .not("pid", "is", null)
       .order("updated_at", { ascending: false })
       .order("id", { ascending: true }),
@@ -108,7 +120,7 @@ export async function getStudySessions(): Promise<{
     supabase
       .from("messages")
       .select(
-        "id, conversation_id, pid, scenario, sender, persona, content, created_at, model",
+        "id, conversation_id, pid, scenario, sender, persona, content, created_at, model, consent",
       )
       .not("pid", "is", null)
       .order("created_at", { ascending: true })
@@ -121,7 +133,7 @@ export async function getStudySessions(): Promise<{
   const participants = await fetchAllRows<any>(() =>
     supabase
       .from("study_participants_admin")
-      .select("pid, scenario, created_at, last_seen_at")
+      .select("pid, scenario, created_at, last_seen_at, consent")
       .order("pid", { ascending: true }),
   );
 
@@ -144,6 +156,9 @@ export async function getStudySessions(): Promise<{
       messageCount: 0,
       participantMessages: 0,
       models: [],
+      // The registry is the authoritative record of what the student
+      // answered, so it wins over whatever individual rows are tagged with.
+      consent: p.consent ?? 0,
       startedAt: p.created_at ?? null,
       lastActivityAt: p.last_seen_at ?? null,
     });
@@ -175,6 +190,7 @@ export async function getStudySessions(): Promise<{
       messageCount: 0,
       participantMessages: 0,
       models: [],
+      consent: conv.consent ?? 0,
       startedAt: conv.created_at ?? null,
       lastActivityAt: conv.updated_at ?? null,
     });
@@ -197,6 +213,7 @@ export async function getStudySessions(): Promise<{
         messageCount: 0,
         participantMessages: 0,
         models: [],
+        consent: msg.consent ?? 0,
         startedAt: msg.created_at ?? null,
         lastActivityAt: msg.created_at ?? null,
       };
@@ -296,11 +313,19 @@ function csvCell(value: unknown): string {
   return str;
 }
 
-/** One row per message: the shape you join against the Qualtrics export. */
+/**
+ * One row per message: the shape you join against the Qualtrics export.
+ *
+ * Every message is exported, including those from students who declined.
+ * Their discussions are coursework and belong in the log; consent is the
+ * column that decides what may be analysed. Filter on consent = 1 rather
+ * than assuming the file is already restricted to it.
+ */
 export function messagesToCsv(messages: StudyMessageRow[]): string {
   const header = [
     "pid",
     "scenario",
+    "consent",
     "conversation_id",
     "timestamp",
     "sender",
@@ -313,6 +338,9 @@ export function messagesToCsv(messages: StudyMessageRow[]): string {
     [
       m.pid,
       m.scenario,
+      // Numeric rather than yes/no: this is the column you filter and cross
+      // tabulate on, and 0/1 imports cleanly into SPSS, R and Excel alike.
+      m.consent ?? 0,
       m.conversation_id,
       m.created_at,
       m.sender,
@@ -332,6 +360,7 @@ export function sessionsToCsv(sessions: StudySessionSummary[]): string {
   const header = [
     "pid",
     "scenario",
+    "consent",
     "advisors_used",
     "models_used",
     "messages_total",
@@ -344,6 +373,7 @@ export function sessionsToCsv(sessions: StudySessionSummary[]): string {
     [
       s.pid,
       s.scenario,
+      s.consent ?? 0,
       s.advisors.join(" | "),
       s.models.join(" | "),
       s.messageCount,

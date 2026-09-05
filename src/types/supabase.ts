@@ -57,6 +57,7 @@ export type Database = {
           user_email: string | null
           pid: string | null
           scenario: number | null
+          consent: number
         }
         Insert: {
           created_at?: string | null
@@ -68,6 +69,7 @@ export type Database = {
           user_email?: string | null
           pid?: string | null
           scenario?: number | null
+          consent?: number
         }
         Update: {
           created_at?: string | null
@@ -79,6 +81,7 @@ export type Database = {
           user_email?: string | null
           pid?: string | null
           scenario?: number | null
+          consent?: number
         }
         Relationships: []
       }
@@ -93,6 +96,7 @@ export type Database = {
           user_email: string | null
           pid: string | null
           scenario: number | null
+          consent: number
           model: string | null
         }
         Insert: {
@@ -105,6 +109,7 @@ export type Database = {
           user_email?: string | null
           pid?: string | null
           scenario?: number | null
+          consent?: number
           model?: string | null
         }
         Update: {
@@ -117,6 +122,7 @@ export type Database = {
           user_email?: string | null
           pid?: string | null
           scenario?: number | null
+          consent?: number
           model?: string | null
         }
         Relationships: [
@@ -329,6 +335,7 @@ export type Database = {
         Row: {
           pid: string | null
           scenario: number | null
+          consent: number
           user_id: string | null
           created_at: string | null
           last_seen_at: string | null

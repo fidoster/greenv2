@@ -3,8 +3,11 @@
 // Resolves a 6-digit participant ID to exactly one Supabase auth user and
 // returns a session for it. Two entry paths converge here:
 //
-//   1. Qualtrics link:  /?pid=482913&scenario=1   (creates on first visit)
-//   2. Return visit:    the participant types their ID at greenbot.live
+//   1. Qualtrics link:  /?pid=482913&scenario=1&consent=1  (creates on first
+//                       visit, and records the research consent answer)
+//   2. Return visit:    the participant types their session code at
+//                       greenbot.live (no consent is sent, so the recorded
+//                       answer stands)
 //
 // Because a pid IS the credential, this runs server-side with the service
 // role so the mapping secret never reaches the browser, and every attempt is
@@ -60,6 +63,14 @@ function participantEmail(pid: string) {
   return `${pid}@${PARTICIPANT_EMAIL_DOMAIN}`;
 }
 
+// Research consent. Only an explicit 1 means consent; every other value,
+// including a missing one, is 0. Mirrors toConsent() in src/lib/study-session
+// deliberately -- both ends of this call have to fail closed independently,
+// because either one could be reached by a request the other did not shape.
+function toConsent(value: unknown): 0 | 1 {
+  return value === 1 || value === "1" ? 1 : 0;
+}
+
 function newSecret() {
   return `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "");
 }
@@ -97,9 +108,16 @@ serve(async (req) => {
     const pid = typeof body.pid === "string" ? body.pid.trim() : "";
     const scenarioRaw = body.scenario;
 
+    // Present only when the caller actually carried a consent parameter. The
+    // distinction matters: a manual session-code login sends nothing, and
+    // must leave the recorded answer alone rather than overwriting a
+    // student's yes with a silent no.
+    const consentGiven = body.consent !== undefined && body.consent !== null;
+    const requestedConsent = toConsent(body.consent);
+
     // ---- Validate the pid server-side. Never trust the client's check. ----
     if (!PID_PATTERN.test(pid)) {
-      return json({ error: "Participant ID must be exactly 6 digits." }, 400);
+      return json({ error: "Session code must be exactly 6 digits." }, 400);
     }
 
     const forwardedFor = req.headers.get("x-forwarded-for") ?? "";
@@ -140,7 +158,7 @@ serve(async (req) => {
     // ---- Look up the participant ----
     const { data: existing, error: lookupError } = await admin
       .from("study_participants")
-      .select("pid, scenario, user_id, auth_secret")
+      .select("pid, scenario, user_id, auth_secret, consent")
       .eq("pid", pid)
       .maybeSingle();
 
@@ -205,13 +223,36 @@ serve(async (req) => {
           ? requestedScenario
           : existing.scenario;
 
+      // Consent follows the same rule with one difference: it changes ONLY
+      // when the request explicitly carried an answer. A student who returns
+      // by typing their session code keeps whatever they answered on the
+      // questionnaire, rather than being silently downgraded to 0 -- which is
+      // the whole reason the registry stores it. A student who arrives from a
+      // link carrying a different answer has changed their mind, and that is
+      // recorded, including a withdrawal from 1 to 0.
+      const activeConsent = consentGiven
+        ? requestedConsent
+        : toConsent(existing.consent);
+
       await admin
         .from("study_participants")
         .update({
           last_seen_at: new Date().toISOString(),
           scenario: activeScenario,
+          consent: activeConsent,
         })
         .eq("pid", pid);
+
+      // Mirrored onto the auth user so a participant returning in a fresh tab
+      // -- no sessionStorage, no URL parameters -- still resolves the right
+      // scenario and consent from their own user record.
+      await admin.auth.admin.updateUserById(existing.user_id, {
+        user_metadata: {
+          study_pid: pid,
+          study_scenario: activeScenario,
+          study_consent: activeConsent,
+        },
+      });
 
       // A known participant is never rate limited.
       await recordAttempt("returning", true);
@@ -221,6 +262,7 @@ serve(async (req) => {
         refresh_token: signIn.session.refresh_token,
         pid,
         scenario: activeScenario,
+        consent: activeConsent,
         returning: true,
       });
     }
@@ -247,7 +289,7 @@ serve(async (req) => {
       return json(
         {
           error:
-            "No study session found for that participant ID. Please use the link from the questionnaire to begin.",
+            "No study session found for that session code. Please use the link from the questionnaire to begin.",
           unknownPid: true,
         },
         404,
@@ -260,7 +302,11 @@ serve(async (req) => {
         email: participantEmail(pid),
         password: secret,
         email_confirm: true,
-        user_metadata: { study_pid: pid, study_scenario: scenario },
+        user_metadata: {
+          study_pid: pid,
+          study_scenario: scenario,
+          study_consent: requestedConsent,
+        },
       });
 
     if (createError || !created?.user) {
@@ -276,6 +322,10 @@ serve(async (req) => {
         scenario,
         user_id: created.user.id,
         auth_secret: secret,
+        // A first entry with no consent parameter records 0. The column also
+        // defaults to 0, so a row can never arrive here claiming consent that
+        // was not given.
+        consent: requestedConsent,
       });
 
     if (insertError) {
@@ -314,6 +364,7 @@ serve(async (req) => {
       refresh_token: signIn.session.refresh_token,
       pid,
       scenario,
+      consent: requestedConsent,
       returning: false,
     });
   } catch (error) {

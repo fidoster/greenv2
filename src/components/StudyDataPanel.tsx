@@ -9,6 +9,7 @@ import {
   Layers,
   RefreshCw,
   Search,
+  ShieldCheck,
   Trash2,
   Users,
 } from "lucide-react";
@@ -175,6 +176,9 @@ const StudyDataPanel = () => {
       scenario1: sessions.filter((s) => s.scenario === 1).length,
       scenario2: sessions.filter((s) => s.scenario === 2).length,
       messages: messages.length,
+      // Sessions, not students: a student consents once, but completes both
+      // scenarios, so this counts the rows that may be analysed.
+      consented: sessions.filter((s) => s.consent === 1).length,
     }),
     [sessions, messages],
   );
@@ -227,10 +231,10 @@ const StudyDataPanel = () => {
       )}
 
       {/* Overview */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatTile
           icon={<Users className="h-5 w-5" />}
-          label="Participants · unique IDs"
+          label="Participants · unique codes"
           value={stats.participants}
         />
         <StatTile
@@ -252,6 +256,11 @@ const StudyDataPanel = () => {
           icon={<span className="text-sm font-bold">S2</span>}
           label="Scenario 2 — city"
           value={stats.scenario2}
+        />
+        <StatTile
+          icon={<ShieldCheck className="h-5 w-5" />}
+          label="Consented · usable as data"
+          value={stats.consented}
         />
       </div>
 
@@ -329,7 +338,7 @@ const StudyDataPanel = () => {
             <div className="relative flex-1 min-w-[180px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Search participant ID or title"
+                placeholder="Search session code or title"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-9"
@@ -376,6 +385,7 @@ const StudyDataPanel = () => {
                     <th className="py-2 pr-3 font-medium w-8"></th>
                     <th className="py-2 pr-3 font-medium">Participant</th>
                     <th className="py-2 pr-3 font-medium">Scenario</th>
+                    <th className="py-2 pr-3 font-medium">Consent</th>
                     <th className="py-2 pr-3 font-medium">Advisors used</th>
                     <th className="py-2 pr-3 font-medium">Model</th>
                     <th className="py-2 pr-3 font-medium text-right">Msgs</th>
@@ -447,6 +457,27 @@ const StudyDataPanel = () => {
                               <span className="text-gray-400">—</span>
                             )}
                           </td>
+                          {/* Declining the study does not remove anyone from
+                              this table: the activity is compulsory and the
+                              discussion is logged either way. This column is
+                              what says whether the row may be analysed. */}
+                          <td className="py-2.5 pr-3">
+                            {s.consent === 1 ? (
+                              <Badge
+                                variant="outline"
+                                className="font-normal text-[11px] px-1.5 py-0 border-[#4B9460]/50 text-[#2C4A3E] dark:text-[#98C9A3] dark:border-[#98C9A3]/40"
+                              >
+                                Yes
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="font-normal text-[11px] px-1.5 py-0 border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400"
+                              >
+                                No
+                              </Badge>
+                            )}
+                          </td>
                           <td className="py-2.5 pr-3">
                             <div className="flex flex-wrap gap-1">
                               {s.advisors.length > 0 ? (
@@ -499,7 +530,7 @@ const StudyDataPanel = () => {
                         {isOpen && (
                           <tr>
                             <td
-                              colSpan={8}
+                              colSpan={9}
                               className="bg-gray-50 dark:bg-[#232927] px-4 py-4"
                             >
                               <div className="max-h-[420px] overflow-y-auto space-y-3 pr-2">
@@ -570,7 +601,7 @@ const StudyDataPanel = () => {
           <p className="text-sm text-gray-600 dark:text-gray-300">
             Permanently delete every study conversation and message. Regular
             user accounts and their chats are not affected — the database
-            policy only permits deleting rows that carry a participant ID.
+            policy only permits deleting rows that carry a session code.
           </p>
 
           {!isDeleteOpen ? (

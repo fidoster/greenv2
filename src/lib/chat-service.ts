@@ -51,6 +51,10 @@ export async function createConversation(title: string, persona: PersonaType) {
         user_email: study ? null : userEmail || null,
         pid: study?.pid ?? null,
         scenario: study?.scenario ?? null,
+        // 0 unless this session carries explicit research consent. The column
+        // is NOT NULL DEFAULT 0, so ?? 0 here matches what the database would
+        // do anyway -- stated rather than relied upon.
+        consent: study?.consent ?? 0,
       })
       .select()
       .single();
@@ -101,6 +105,12 @@ export async function saveMessage(conversationId: string, message: Message) {
       user_email: study ? null : userEmail || null,
       pid: study?.pid ?? null,
       scenario: study?.scenario ?? null,
+      // Written on every message, participant and assistant alike, so the
+      // export filters on one column with no join. A student who declined
+      // still has their whole conversation stored -- it is coursework, and
+      // deleting it would break the activity -- it is simply tagged 0 and
+      // excluded from analysis.
+      consent: study?.consent ?? 0,
       // Which model produced this reply. Null on user messages and on
       // locally generated error text.
       model: (message as { model?: string | null }).model ?? null,
