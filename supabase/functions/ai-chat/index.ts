@@ -157,9 +157,35 @@ serve(async (req) => {
       // the old pair, so the body is built per-model.
       const body: Record<string, unknown> = { model, messages };
       if (model.startsWith("gpt-5")) {
-        // Headroom above the previous 1000: reasoning tokens come out of the
-        // same budget, and exhausting it returns an empty message, not an error.
-        body.max_completion_tokens = 2000;
+        // Reasoning tokens are drawn from max_completion_tokens, and when they
+        // exhaust it the API returns HTTP 200 with finish_reason "length" and
+        // an EMPTY string -- not an error.
+        //
+        // 2000 was not enough. A student pasting the dilemma sends text that
+        // opens "You are a Junior Digital Marketing Associate at ...", which
+        // reads as a role assignment and pushed the model into long internal
+        // reasoning: every attempt burned the whole budget and returned
+        // nothing, after ~27 seconds. Once that text was in the history even a
+        // 30-character follow-up failed the same way.
+        //
+        // Both halves matter. The larger budget means reasoning cannot starve
+        // the answer, and low effort keeps a chat advisor from reasoning at
+        // length about a question that does not need it -- which is also what
+        // brings the 27 seconds back down to a usable latency.
+        body.max_completion_tokens = 8000;
+        body.reasoning_effort = "low";
+        // Without this the model answers a dilemma with 10-12k characters --
+        // complete, but a wall of text no student reads, which would quietly
+        // cost the study more than the original bug did. "low" halves both the
+        // length and the latency (~30s -> ~17s) and is the only lever that
+        // does so without editing the persona prompt, which is part of the
+        // study instrument and not something to change mid-launch.
+        //
+        // "minimal" is NOT a valid reasoning_effort for this model (the API
+        // rejects it with a 400); the accepted values include "none" and
+        // "low". "none" is faster still, but keeps no reasoning at all, and
+        // reasoning quality is the thing being studied.
+        body.verbosity = "low";
       } else {
         body.temperature = 0.7;
         body.max_tokens = 1000;
@@ -192,6 +218,28 @@ serve(async (req) => {
 
         if (aiResponse.ok) {
           const data = await aiResponse.json();
+
+          // A 200 is not proof of an answer. When a reasoning model spends its
+          // whole budget thinking, the reply is a well-formed response object
+          // whose content is "" -- so this has to be checked explicitly or the
+          // empty string sails through, gets rendered as a blank bubble, and is
+          // saved into the study data as though the advisor said nothing.
+          //
+          // Treated as a provider failure so the chain fails over to Grok
+          // rather than handing the student silence.
+          const choice = data?.choices?.[0];
+          const text: string = choice?.message?.content ?? "";
+
+          if (!text.trim()) {
+            lastError =
+              `${cfg.name.toUpperCase()} returned an empty completion ` +
+              `(finish_reason: ${choice?.finish_reason ?? "unknown"}).`;
+            lastStatus = 502;
+            console.error(lastError, JSON.stringify(data?.usage ?? {}));
+            if (isLast) break;
+            continue;
+          }
+
           if (i > 0) {
             console.log(
               `Primary ${chain[0].name} failed; answered with ${cfg.name} (${cfg.model})`
