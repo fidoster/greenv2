@@ -140,7 +140,26 @@ export async function callDeepseekAPI(
   }
 }
 
+// Shared reply style, appended to every persona.
+//
+// Applied to all of them deliberately: students can switch advisors during a
+// task and the study compares those advisors, so if only one wrote in prose
+// the comparison would partly measure formatting rather than the advice.
+//
+// The rule targets bullets used as a substitute for reasoning. Three parallel
+// items -- named regulations, distinct examples -- are genuinely a list. Two
+// options, a trade-off, or a chain of "because" is an argument, and bulleting
+// it strips out the connective tissue this study exists to watch students
+// engage with.
+const RESPONSE_STYLE = `
+
+Write in connected prose, in short paragraphs. Use a bulleted list only when the content is genuinely a list: three or more parallel items of the same kind, such as named regulations or distinct examples. Do not use bullets to lay out reasoning, to weigh two options against each other, or to structure an argument -- explain those in sentences, so the reasoning stays visible. Avoid headings unless the reply is long enough to need them.`;
+
 export function getSystemPromptForPersona(persona: string): string {
+  return basePromptForPersona(persona) + RESPONSE_STYLE;
+}
+
+function basePromptForPersona(persona: string): string {
   switch (persona) {
     case "GreenBot":
       return "You are GreenBot, a general sustainability advisor. Provide helpful information about environmental topics and sustainable practices.";
