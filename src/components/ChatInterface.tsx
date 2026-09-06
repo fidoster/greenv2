@@ -731,12 +731,32 @@ const ChatInterface = ({
         const newTitle =
           content.length > 30 ? content.substring(0, 30) + "..." : content;
 
-        // Update the chat history with the new title
-        const updatedHistory = chatHistory.map((chat) =>
-          chat.id === selectedChat.id ? { ...chat, title: newTitle } : chat,
+        // Functional update, and the id comes from activeConversationId.
+        //
+        // Reading the captured chatHistory here rebuilt the whole array from
+        // the render that started this send -- before the conversation was
+        // created -- and wrote it back, reverting the sidebar entry's id from
+        // the real UUID to the placeholder "default". The transcript still
+        // saved correctly, because that path uses activeConversationId, so
+        // the only casualty was the history link: clicking the entry queried
+        // conversation "default", which cannot exist, and the student saw an
+        // empty chat where their conversation should be.
+        setChatHistory((prev) =>
+          prev.map((chat) =>
+            chat.selected
+              ? {
+                  ...chat,
+                  // Guests never create a row, so they keep "default" here
+                  // and stay self-consistent with their localStorage entry.
+                  id:
+                    activeConversationId !== "default"
+                      ? activeConversationId
+                      : chat.id,
+                  title: newTitle,
+                }
+              : chat,
+          ),
         );
-
-        setChatHistory(updatedHistory);
 
         // Save the updated conversation
         const updatedMessages = messages
