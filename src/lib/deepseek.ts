@@ -153,7 +153,17 @@ export async function callDeepseekAPI(
 // engage with.
 const RESPONSE_STYLE = `
 
-Write in connected prose, in short paragraphs. Use a bulleted list only when the content is genuinely a list: three or more parallel items of the same kind, such as named regulations or distinct examples. Do not use bullets to lay out reasoning, to weigh two options against each other, or to structure an argument -- explain those in sentences, so the reasoning stays visible. Avoid headings unless the reply is long enough to need them.`;
+Write in connected prose, in short paragraphs. Use a bulleted list only when the content is genuinely a list: three or more parallel items of the same kind, such as named regulations or distinct examples. Do not use bullets to lay out reasoning, to weigh two options against each other, or to structure an argument -- explain those in sentences, so the reasoning stays visible. Avoid headings unless the reply is long enough to need them. Keep replies short, normally under 200 words. Answer the question that was actually asked rather than everything related to it, and let the student ask for more.`;
+
+// On the 200: measured, not guessed. Without a limit the model answered a
+// dilemma in ~595 words over ~11.5s. "Under 200 words" produced ~235 words in
+// ~5.6s -- half the wait, with the regulations, the defensible claim wording
+// and the commercial alternatives all still present.
+//
+// Tightening to 150 was tested and is worse, not better: the same ~216 words,
+// slightly slower, and it started reintroducing bullet points. Squeezed hard
+// enough on length the model compresses by bulleting, which fights the rule
+// above and hides exactly the reasoning this study wants students to see.
 
 export function getSystemPromptForPersona(persona: string): string {
   return basePromptForPersona(persona) + RESPONSE_STYLE;
